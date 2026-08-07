@@ -3,17 +3,16 @@
 
 // Ansteuerung des runden 1.5" ST77916-QSPI-Displays im Phosphor-Grün-
 // Retro-Stil. Redraw-Strategie ist bewusst ereignisgesteuert (CLAUDE.md
-// Stolperstein #5): showStation()/setTrackInfo()/setWeatherSummary()
-// lösen nur bei tatsächlicher Änderung einen (Teil-)Redraw aus, tick()
+// Stolperstein #5): showStation()/setTrackInfo()/setInfoLine() lösen
+// nur bei tatsächlicher Änderung einen (Teil-)Redraw aus, tick()
 // aktualisiert Scroll-Text und ON-AIR-Blinken jeweils nur zeilenweise.
 //
-// Kein eigener Wetter-Bildschirm (mehr): Wetter/Raumtemperatur laufen
-// als kompakte Zusammenfassungszeile permanent im Radio-Screen mit,
-// kein Umschalten nötig. Das ersetzt die vorherige IP-Anzeige dort --
-// die IP bleibt über mDNS ("esp32radio.local") bzw. das Webinterface
-// erreichbar, muss also nicht auf dem kleinen Display stehen. Die
-// vollständige Vorhersage (jetzt/+6h/heute/morgen) zeigt stattdessen
-// das Webinterface, wo genug Platz dafür ist.
+// Kein eigener Wetter-Bildschirm: statt dessen läuft eine Info-Zeile
+// permanent im Radio-Screen mit (ersetzt die frühere IP-Anzeige dort --
+// die IP bleibt über mDNS "esp32radio.local" bzw. Webinterface
+// erreichbar). radio.cpp rotiert ihren Inhalt alle 30s zwischen Raum-/
+// Aussentemperatur, heutigem und morgigem Wetter (setInfoLine()) --
+// Display kennt nur den fertigen Text, keine Wetter-Logik.
 namespace Display {
   void begin();
 
@@ -36,9 +35,9 @@ namespace Display {
   // dargestellt, siehe Kommentar oben); kein Redraw nötig.
   void setWifiInfo(bool connected, const String &ip);
 
-  // Aktualisiert die Wetter/Raumtemperatur-Zusammenfassungszeile
-  // (nur diese Zeile, kein Vollbild-Clear). valid=false -> "n/a".
-  void setWeatherSummary(bool wxValid, float wxTempC, bool roomValid, float roomTempC);
+  // Aktualisiert die untere Info-Zeile (nur diese Zeile, kein Vollbild-
+  // Clear) -- nur bei tatsächlicher Textänderung wird neu gezeichnet.
+  void setInfoLine(const String &text);
 
   // Muss regelmässig aus loop() aufgerufen werden: kümmert sich intern
   // um Scroll-Text (alle 350ms) und ON-AIR-Blinken (alle 800ms).

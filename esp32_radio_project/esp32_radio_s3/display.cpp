@@ -1,7 +1,6 @@
 #include "display.h"
 #include "config.h"
 #include <Arduino_GFX_Library.h>
-#include <math.h>
 
 namespace {
 
@@ -27,8 +26,10 @@ constexpr int Y_ARTIST   = SAFE_T + 122;
 constexpr int Y_RULE3    = SAFE_T + 160;
 constexpr int Y_TITLE    = SAFE_T + 142;
 constexpr int Y_STATUS   = SAFE_T + 178;
-// Zeigte früher die IP; jetzt die Wetter/Raumtemperatur-Zusammenfassung
-// (IP bleibt über mDNS "esp32radio.local" bzw. Webinterface erreichbar).
+// Zeigte früher die IP; jetzt eine von radio.cpp befüllte, rotierende
+// Info-Zeile (Raum-/Aussentemperatur, Wetter heute/morgen -- siehe
+// setInfoLine()). IP bleibt über mDNS "esp32radio.local" bzw.
+// Webinterface erreichbar.
 constexpr int Y_INFO     = SAFE_T + 196;
 
 constexpr unsigned long SCROLL_INTERVAL_MS = 350;
@@ -57,11 +58,8 @@ bool   wifiOk = false;
 String ipText;   // aktuell nicht dargestellt, siehe Y_INFO-Kommentar
 bool   onRadioScreen = false;
 
-// --- Wetter/Raumtemperatur-Zusammenfassung (Teil der Status-Zeile) ---
-bool   wxValid = false;
-float  wxTempC = 0;
-bool   roomValid = false;
-float  roomTempC = 0;
+// --- Info-Zeile (Teil der Status-Zeile, Inhalt/Rotation von radio.cpp) ---
+String infoLine;
 
 int scrollPos = 0;
 unsigned long lastScroll = 0, lastBlink = 0;
@@ -89,21 +87,6 @@ void drawCentered(const String &text, int y, int size, uint16_t color) {
   drawCenteredAt(text, CTR_X, y, size, color);
 }
 
-// Ganzzahlig gerundete Temperatur ohne Grad-Zeichen (Standard-Font der
-// GFX-Library führt u.U. kein '°'-Glyph -- "18C" statt "18°C" ist auf
-// dem Gerätedisplay daher sicherer; das Webinterface nutzt echtes UTF-8).
-String fmtTempC(float c) {
-  return String((int)roundf(c)) + "C";
-}
-
-String weatherInfoLine() {
-  String s = "WETTER ";
-  s += wxValid ? fmtTempC(wxTempC) : "n/a";
-  s += "  RAUM ";
-  s += roomValid ? fmtTempC(roomTempC) : "n/a";
-  return s;
-}
-
 void drawTitleLine() {
   gfx->fillRect(SAFE_L, Y_TITLE - 10, SAFE_W, 18, COL_BG);
   String line = trackTitle.length() ? trackTitle : (playing ? "..." : statusText);
@@ -118,7 +101,7 @@ void drawStatusLine() {
   } else {
     drawCentered(statusText, Y_STATUS, 1, COL_MID);
   }
-  drawCentered(weatherInfoLine(), Y_INFO, 1, COL_DIM);
+  drawCentered(infoLine, Y_INFO, 1, COL_DIM);
 }
 
 void fullRedraw() {
@@ -194,13 +177,10 @@ void setWifiInfo(bool connected, const String &ip) {
   ipText = ip;
 }
 
-void setWeatherSummary(bool newWxValid, float newWxTempC, bool newRoomValid, float newRoomTempC) {
-  bool changed = (wxValid != newWxValid) || (roomValid != newRoomValid) ||
-                 (newWxValid && wxTempC != newWxTempC) ||
-                 (newRoomValid && roomTempC != newRoomTempC);
-  wxValid = newWxValid; wxTempC = newWxTempC;
-  roomValid = newRoomValid; roomTempC = newRoomTempC;
-  if (onRadioScreen && changed) drawStatusLine();
+void setInfoLine(const String &text) {
+  if (text == infoLine) return;
+  infoLine = text;
+  if (onRadioScreen) drawStatusLine();
 }
 
 void tick() {

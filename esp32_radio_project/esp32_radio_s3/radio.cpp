@@ -6,6 +6,7 @@
 #include "i2c_master.h"
 #include "weather.h"
 #include <WiFi.h>
+#include <math.h>
 
 namespace {
   int    station = 0;
@@ -22,6 +23,44 @@ namespace {
   bool   roomTempOk = false;
   float  roomLastC = 0;
   unsigned long lastRoomPoll = 0;
+
+  // --- Info-Zeile: rotiert alle INFO_LINE_ROTATE_MS zwischen
+  // Raum/Aussentemperatur, Wetter heute und Wetter morgen ---
+  int    infoMode = 0;  // 0=Raum+Aussen, 1=Heute, 2=Morgen
+  unsigned long lastInfoRotate = 0;
+
+  String fmtC(float c) {
+    return String((int)roundf(c)) + "C";
+  }
+
+  // Wetter vereinfacht auf 4 Kategorien statt Icons -- reicht für eine
+  // einzeilige Textanzeige.
+  String weatherCategory(Weather::Icon icon) {
+    using Icon = Weather::Icon;
+    switch (icon) {
+      case Icon::SUN:
+      case Icon::PARTLY_CLOUDY: return "SCHOEN";
+      case Icon::CLOUDY:
+      case Icon::FOG:           return "BEWOELKT";
+      case Icon::RAIN:
+      case Icon::SNOW:          return "REGEN";
+      case Icon::STORM:         return "STURM";
+      default:                  return "n/a";
+    }
+  }
+
+  String buildInfoLine() {
+    if (infoMode == 0) {
+      String room = roomTempOk ? fmtC(roomLastC) : "n/a";
+      Weather::HourSlot wxNow = Weather::now();
+      String outside = wxNow.valid ? fmtC(wxNow.tempC) : "n/a";
+      return "RAUM " + room + "  DRAUSSEN " + outside;
+    }
+    Weather::DaySlot d = (infoMode == 1) ? Weather::today() : Weather::tomorrow();
+    String label = (infoMode == 1) ? "HEUTE" : "MORGEN";
+    if (!d.valid) return label + " n/a";
+    return label + " " + weatherCategory(d.icon) + "  ~" + fmtC((d.tempMin + d.tempMax) / 2.0f);
+  }
 
   void onTrackInfo(const String &a, const String &t) {
     artist = a; title = t;
@@ -93,11 +132,14 @@ void loop() {
     // CLAUDE.md Stolperstein #6.
   }
 
-  // Wetter/Raumtemperatur laufen als Zusammenfassungszeile permanent im
-  // Radio-Screen mit (kein eigener Bildschirm mehr) -- Display prüft
-  // intern auf tatsächliche Änderung, bevor neu gezeichnet wird.
-  Weather::HourSlot wxNow = Weather::now();
-  Display::setWeatherSummary(wxNow.valid, wxNow.tempC, roomTempOk, roomLastC);
+  if (now - lastInfoRotate > INFO_LINE_ROTATE_MS) {
+    lastInfoRotate = now;
+    infoMode = (infoMode + 1) % 3;
+  }
+  // Display prüft intern auf tatsächliche Textänderung, bevor neu
+  // gezeichnet wird -- unproblematisch, das jeden Loop-Durchlauf
+  // neu zu berechnen.
+  Display::setInfoLine(buildInfoLine());
 
   bool nowConnected = (WiFi.status() == WL_CONNECTED);
   if (wifiOk && !nowConnected) {

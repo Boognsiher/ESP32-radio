@@ -52,3 +52,7 @@
 // dessen eigenes Mess-Intervall angelehnt (ROOM_TEMP_POLL_INTERVAL_MS in
 // esp32_radio_bt/config.h), häufigeres Abfragen brächte nichts.
 #define ROOM_TEMP_I2C_POLL_MS  20000
+
+// Rotation der Info-Zeile im Radio-Screen: Raum+Aussentemperatur ->
+// Wetter heute -> Wetter morgen -> von vorn.
+#define INFO_LINE_ROTATE_MS  30000
