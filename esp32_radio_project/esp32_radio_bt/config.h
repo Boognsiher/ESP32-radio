@@ -26,3 +26,7 @@
 
 // ESP-IDF-Inquiry-Dauer in 1.28s-Einheiten (10 -> ca. 12.8s Scan-Dauer)
 #define BT_SCAN_DURATION_UNITS 10
+
+// Retries für set_auto_reconnect() bei fester MAC-Zieladresse, bevor die
+// Library auf Discovery-Scan zurückfällt (siehe bt_a2dp.cpp).
+#define BT_MAC_RECONNECT_RETRIES 5

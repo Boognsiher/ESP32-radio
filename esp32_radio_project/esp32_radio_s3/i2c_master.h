@@ -21,4 +21,12 @@ namespace I2cMaster {
   bool getScanDevice(uint8_t index, ScanDevice &out);
 
   void setBtTarget(const String &name);
+
+  // Verbindet künftig direkt per fester MAC-Adresse (robuster als die
+  // Namenssuche, siehe README). mac muss auf 6 Byte zeigen.
+  void setBtTargetMac(const uint8_t mac[6]);
+
+  // Entfernt eine gesetzte feste MAC-Adresse wieder -- DevKit verbindet
+  // danach wieder per Namenssuche (setBtTarget()).
+  void clearBtTargetMac();
 }

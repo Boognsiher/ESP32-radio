@@ -100,4 +100,19 @@ void setBtTarget(const String &name) {
   Wire.endTransmission();
 }
 
+void setBtTargetMac(const uint8_t mac[6]) {
+  Wire.beginTransmission(I2C_SLAVE_ADDR);
+  Wire.write(I2C_CMD_SET_BT_MAC);
+  Wire.write(mac, 6);
+  Wire.endTransmission();
+}
+
+void clearBtTargetMac() {
+  // Kommando ohne Payload -- der Slave interpretiert das als "MAC entfernen"
+  // (siehe i2c_protocol.h).
+  Wire.beginTransmission(I2C_SLAVE_ADDR);
+  Wire.write(I2C_CMD_SET_BT_MAC);
+  Wire.endTransmission();
+}
+
 } // namespace I2cMaster

@@ -43,6 +43,21 @@ Checksumme; beide Seiten verwerfen Antworten mit falscher Checksumme oder
 unplausiblem Wertebereich, statt sie zu verwenden (Umsetzung von CLAUDE.md
 Stolperstein #6).
 
+### Bluetooth-Ziel: Name vs. feste MAC-Adresse
+
+Der Lautsprecher lässt sich entweder per Name (klassische Discovery-
+Suche) oder per fester MAC-Adresse verbinden. Die MAC-Variante ist
+zuverlässiger, da `BluetoothA2DPSource` dabei laut Library-Quellcode
+(`set_auto_reconnect(esp_bd_addr_t, retries)` + `start()` ohne Namen)
+direkt verbindet, ohne vorherigen Discovery-Scan. Eine gesetzte MAC hat
+Vorrang vor dem Namen.
+
+- **Webinterface** (`/btscan`): "VERBINDEN" bei einem Scan-Ergebnis nutzt
+  automatisch dessen MAC-Adresse; alternativ lässt sich eine bekannte MAC
+  auch direkt eintragen. "MAC ENTFERNEN" schaltet zurück auf Namenssuche.
+- **Serial** (DevKitV1, 115200 Baud): `setbtmac:AA:BB:CC:DD:EE:FF` /
+  `clearbtmac` (zusätzlich zu `setbt:NAME`, `scan`, `status`).
+
 ## Benötigte Libraries
 
 - **GFX Library for Arduino** (moononournation) – Display-Treiber

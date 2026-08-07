@@ -32,6 +32,10 @@
 #define I2C_CMD_GET_SCAN_STATUS    0x02   // Antwort: [state, count, chk]       (3 Byte)
 #define I2C_CMD_GET_SCAN_DEVICE    0x10   // + Index 0..7,  Antwort: Scan-Record (s.u.)
 #define I2C_CMD_SET_BT_TARGET      0x20   // + Namensbytes, kein Antwort-Request
+#define I2C_CMD_SET_BT_MAC         0x21   // + 6 Rohbytes MAC-Adresse, kein Antwort-Request.
+                                           // Payload leer (0 Byte) statt 6 Byte -> Slave
+                                           // interpretiert das als "feste MAC entfernen,
+                                           // zurück auf Namens-Verbindung".
 
 #define I2C_SCAN_MAX_DEVICES       8
 #define I2C_SCAN_NAME_LEN          20

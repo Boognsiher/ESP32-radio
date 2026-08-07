@@ -9,9 +9,25 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include <stdlib.h>
 
 namespace {
   WebServer server(80);
+
+  // Parst "AA:BB:CC:DD:EE:FF" (gross-/kleinschreibungsunabhängig) in 6
+  // Rohbytes. Gibt false bei ungültigem Format zurück.
+  bool parseMacAddress(const String &text, uint8_t out[6]) {
+    if (text.length() != 17) return false;
+    for (int i = 0; i < 6; i++) {
+      if (i < 5 && text[i * 3 + 2] != ':') return false;
+      char hex[3] = { text[i * 3], text[i * 3 + 1], 0 };
+      char *end = nullptr;
+      long v = strtol(hex, &end, 16);
+      if (end != hex + 2) return false;
+      out[i] = (uint8_t)v;
+    }
+    return true;
+  }
 
   // BT-Scan-Zwischenspeicher fürs Webinterface, per /btscan/data-Polling
   // aus dem Browser aktuell gehalten.
@@ -137,21 +153,36 @@ namespace {
       "<div id='state'>Bereit.</div>"
       "<table><thead><tr><th>NAME</th><th>ADRESSE</th><th>RSSI</th><th></th></tr></thead>"
       "<tbody id='rows'></tbody></table>"
+      "<h2>// FESTE MAC-ADRESSE</h2>"
+      "<div class='card'>"
+      "<div class='surl' style='margin-bottom:8px'>Verbindung per MAC ist zuverlaessiger als per "
+      "Name (keine erneute Discovery noetig). \"VERBINDEN\" oben nutzt automatisch die MAC aus dem "
+      "Scan-Ergebnis; hier kannst du alternativ eine bereits bekannte MAC direkt eintragen.</div>"
+      "<label>MAC-ADRESSE (AA:BB:CC:DD:EE:FF)</label>"
+      "<input id='macInput' placeholder='AA:BB:CC:DD:EE:FF' maxlength='17'>"
+      "<button class='btn btn-full' onclick='connectManual()'>VERBINDEN</button>"
+      "<button class='btn btn-full' style='margin-top:6px' "
+      "onclick=\"if(confirm('Feste MAC entfernen und wieder per Name verbinden?'))"
+      "fetch('/btscan/clearmac').then(()=>{document.getElementById('state').innerText="
+      "'MAC entfernt -- verbinde wieder per Name...';});\">MAC ENTFERNEN (NAME-MODUS)</button>"
+      "</div>"
       "<p><a href='/' style='color:#00aa33'>&lt;&lt; zurueck</a></p>"
       "<script>"
       "let poll=null;"
       "function startScan(){fetch('/btscan/start').then(()=>{"
       "document.getElementById('state').innerText='Scanne...';"
       "if(poll)clearInterval(poll); poll=setInterval(refresh,1500);});}"
-      "function connectTo(n){if(!confirm('Mit \"'+n+'\" verbinden?'))return;"
-      "fetch('/btscan/connect?name='+encodeURIComponent(n)).then(()=>{"
-      "document.getElementById('state').innerText='Verbinde mit '+n+' ...';});}"
+      "function connectMac(mac,label){if(!confirm('Mit '+label+' ('+mac+') verbinden?'))return;"
+      "fetch('/btscan/connect?mac='+encodeURIComponent(mac)).then(()=>{"
+      "document.getElementById('state').innerText='Verbinde mit '+mac+' ...';});}"
+      "function connectManual(){let m=document.getElementById('macInput').value.trim();"
+      "if(!m)return; connectMac(m,m);}"
       "function refresh(){fetch('/btscan/data').then(r=>r.json()).then(d=>{"
       "let s=d.state==0?'Bereit.':(d.state==1?'Scanne...':'Fertig ('+d.count+' gefunden).');"
       "document.getElementById('state').innerText=s;"
       "let rows='';"
       "d.devices.forEach(dev=>{"
-      "let btn=\"<button class='btn' onclick=\\\"connectTo('\"+dev.name.replace(/'/g,\"\\\\'\")+\"')\\\">VERBINDEN</button>\";"
+      "let btn=\"<button class='btn' onclick=\\\"connectMac('\"+dev.addr+\"','\"+dev.name.replace(/'/g,\"\\\\'\")+\"')\\\">VERBINDEN</button>\";"
       "rows+='<tr><td>'+dev.name+'</td><td>'+dev.addr+'</td><td>'+dev.rssi+'</td><td>'+btn+'</td></tr>';});"
       "document.getElementById('rows').innerHTML=rows;"
       "if(d.state==2 && poll){clearInterval(poll);poll=null;}});}"
@@ -195,11 +226,32 @@ namespace {
     server.send(200, "application/json", json);
   }
 
+  // MAC-Adresse wird bevorzugt (zuverlässiger, siehe README); Namens-
+  // Parameter bleibt als Fallback für Clients ohne MAC-Angabe erhalten.
   void handleBtConnect() {
-    if (!server.hasArg("name")) { server.send(400, "text/plain", "kein name"); return; }
-    String name = server.arg("name"); name.trim();
-    if (name.length() == 0) { server.send(400, "text/plain", "kein name"); return; }
-    I2cMaster::setBtTarget(name);
+    if (server.hasArg("mac")) {
+      String macStr = server.arg("mac"); macStr.trim();
+      uint8_t mac[6];
+      if (!parseMacAddress(macStr, mac)) {
+        server.send(400, "text/plain", "ungueltige MAC-Adresse (Format AA:BB:CC:DD:EE:FF)");
+        return;
+      }
+      I2cMaster::setBtTargetMac(mac);
+      server.send(200, "text/plain", "ok");
+      return;
+    }
+    if (server.hasArg("name")) {
+      String name = server.arg("name"); name.trim();
+      if (name.length() == 0) { server.send(400, "text/plain", "kein name"); return; }
+      I2cMaster::setBtTarget(name);
+      server.send(200, "text/plain", "ok");
+      return;
+    }
+    server.send(400, "text/plain", "kein ziel angegeben (mac oder name)");
+  }
+
+  void handleBtClearMac() {
+    I2cMaster::clearBtTargetMac();
     server.send(200, "text/plain", "ok");
   }
 }
@@ -216,6 +268,7 @@ void begin() {
   server.on("/btscan/start", HTTP_GET, handleBtScanStart);
   server.on("/btscan/data", HTTP_GET, handleBtScanData);
   server.on("/btscan/connect", HTTP_GET, handleBtConnect);
+  server.on("/btscan/clearmac", HTTP_GET, handleBtClearMac);
   server.onNotFound([]() { server.sendHeader("Location", "/"); server.send(302); });
   server.begin();
 

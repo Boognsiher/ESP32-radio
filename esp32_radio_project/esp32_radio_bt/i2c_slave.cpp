@@ -15,6 +15,12 @@ namespace {
   volatile bool pendingBtTarget = false;
   char pendingBtName[I2C_BT_NAME_MAXLEN + 1] = "";
 
+  // MAC-Kommando: pendingBtMacSet -> neue MAC übernehmen, pendingBtMacClear
+  // -> feste MAC entfernen (Payload war leer, siehe i2c_protocol.h).
+  volatile bool pendingBtMacSet = false;
+  volatile bool pendingBtMacClear = false;
+  uint8_t pendingBtMacBytes[6];
+
   // Läuft im I2C-ISR-Kontext -- kurz halten, keine Neustarts/Delays hier.
   void onReceive(int len) {
     if (Wire.available() < 1) return;
@@ -26,6 +32,17 @@ namespace {
       pendingBtName[i] = 0;
       while (Wire.available()) Wire.read();  // Rest verwerfen, falls zu lang
       pendingBtTarget = true;
+      lastCommand = I2C_CMD_GET_BUTTONS;
+      return;
+    }
+
+    if (cmd == I2C_CMD_SET_BT_MAC) {
+      int i = 0;
+      while (Wire.available() && i < 6) pendingBtMacBytes[i++] = (uint8_t)Wire.read();
+      while (Wire.available()) Wire.read();  // Rest verwerfen, falls zu lang
+      if (i == 6) pendingBtMacSet = true;
+      else if (i == 0) pendingBtMacClear = true;
+      // 1..5 Byte: unvollständige/fehlerhafte Übertragung -> ignorieren
       lastCommand = I2C_CMD_GET_BUTTONS;
       return;
     }
@@ -82,6 +99,18 @@ void begin() {
 }
 
 void handlePendingBtTarget() {
+  if (pendingBtMacSet) {
+    pendingBtMacSet = false;
+    Serial.println("[BT] Neue Ziel-MAC per I2C/Web gesetzt");
+    BtA2dp::setDeviceMac(pendingBtMacBytes);  // führt intern ESP.restart() aus
+    return;
+  }
+  if (pendingBtMacClear) {
+    pendingBtMacClear = false;
+    Serial.println("[BT] Ziel-MAC per I2C/Web entfernt");
+    BtA2dp::clearDeviceMac();  // führt intern ESP.restart() aus
+    return;
+  }
   if (!pendingBtTarget) return;
   pendingBtTarget = false;
   String newName(pendingBtName);
