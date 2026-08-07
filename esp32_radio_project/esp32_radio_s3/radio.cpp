@@ -15,10 +15,6 @@ namespace {
   bool   wifiOk  = false;
   unsigned long lastI2cPoll = 0;
 
-  // --- Bildschirm-Rotation Radio <-> Wetter ---
-  bool   showingWeather = false;
-  unsigned long lastScreenSwitch = 0;
-
   // --- Raumtemperatur (per I2C vom DevKit, DS18B20 optional) ---
   // Getrennt benannt von den öffentlichen Radio::roomTempValid()/
   // roomTempC()-Funktionen weiter unten, um eine Namenskollision
@@ -60,12 +56,6 @@ void startStation(int idx) {
   status = "Verbinde...";
   playing = false;
 
-  // Sender-Wechsel ist ein deutliches Ereignis -- zurück zum Radio-Screen
-  // und die Rotation von dort neu starten, statt sofort wieder zum
-  // Wetter-Screen zu springen.
-  showingWeather = false;
-  lastScreenSwitch = millis();
-
   Display::showStation(station, STATION_COUNT, Stations::get(station).name);
   Display::setTrackInfo(artist, title);
   Display::setStatus(status, playing);
@@ -103,17 +93,11 @@ void loop() {
     // CLAUDE.md Stolperstein #6.
   }
 
-  unsigned long screenDuration = showingWeather ? SCREEN_WEATHER_DURATION_MS : SCREEN_RADIO_DURATION_MS;
-  if (now - lastScreenSwitch > screenDuration) {
-    lastScreenSwitch = now;
-    showingWeather = !showingWeather;
-    if (showingWeather) {
-      Display::showWeather(Weather::now(), Weather::plus6h(), Weather::today(), Weather::tomorrow(),
-                            roomTempOk, roomLastC);
-    } else {
-      Display::showStation(station, STATION_COUNT, Stations::get(station).name);
-    }
-  }
+  // Wetter/Raumtemperatur laufen als Zusammenfassungszeile permanent im
+  // Radio-Screen mit (kein eigener Bildschirm mehr) -- Display prüft
+  // intern auf tatsächliche Änderung, bevor neu gezeichnet wird.
+  Weather::HourSlot wxNow = Weather::now();
+  Display::setWeatherSummary(wxNow.valid, wxNow.tempC, roomTempOk, roomLastC);
 
   bool nowConnected = (WiFi.status() == WL_CONNECTED);
   if (wifiOk && !nowConnected) {

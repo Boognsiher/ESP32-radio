@@ -61,17 +61,23 @@ Vorrang vor dem Namen.
 
 ### Wetter + Raumtemperatur
 
-Der runde Bildschirm wechselt automatisch alle paar Sekunden zwischen
-Radio-Ansicht und Wetter-Ansicht (Icon + Temperatur für jetzt/+6h/heute/
-morgen, per [Open-Meteo](https://open-meteo.com/) – kostenlos, kein
-API-Key) sowie der Raumtemperatur eines optionalen DS18B20-Sensors am
-DevKit (siehe `hardware/pinout.md`). Kein Sensor angeschlossen -> zeigt
-einfach "n/a", kein Fehlerzustand.
+Kein eigener Wetter-Bildschirm, kein Umschalten nötig: eine kompakte
+Zusammenfassungszeile ("WETTER 18C  RAUM 21C") läuft permanent im
+Radio-Screen mit, an der Stelle, wo vorher die IP-Adresse stand (die
+bleibt über mDNS `esp32radio.local` bzw. das Webinterface erreichbar,
+muss also nicht auf dem kleinen Display stehen). Wetterdaten kommen von
+[Open-Meteo](https://open-meteo.com/) (kostenlos, kein API-Key);
+Raumtemperatur von einem optionalen DS18B20-Sensor am DevKit (siehe
+`hardware/pinout.md`). Kein Sensor angeschlossen -> zeigt einfach
+"n/a", kein Fehlerzustand.
+
+Die volle Vorhersage (Icon + Temperatur für jetzt/+6h/heute/morgen)
+zeigt das Webinterface auf der Hauptseite unter "// WETTER" – dafür ist
+auf dem kleinen runden Display schlicht nicht dauerhaft Platz, ohne die
+Radio-Anzeige zu überladen.
 
 - **Standort**: im Webinterface unter "// STANDORT (WETTER)" als
   Lat/Lon einstellbar, NVS-persistiert, Default Zürich.
-- **Icons**: einfache Vektor-Grafiken (Sonne/Wolke/Regen/Schnee/Gewitter/
-  Nebel) im Phosphor-Grün-Stil, kein Bild-Datenmaterial nötig.
 - Die Raumtemperatur wird per I2C vom DevKit abgefragt (neues Kommando
   `I2C_CMD_GET_ROOM_TEMP`, gleiche Checksummen-Plausibilitätsprüfung wie
   die übrigen I2C-Antworten).

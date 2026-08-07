@@ -48,10 +48,6 @@
 #define WEATHER_FETCH_INTERVAL_MS   (20UL * 60UL * 1000UL)   // alle 20 Minuten
 #define WEATHER_HTTP_TIMEOUT_MS     8000
 
-// --- Anzeige-Rotation: Radio-Screen <-> Wetter-Screen ---
-#define SCREEN_RADIO_DURATION_MS    (12UL * 1000UL)
-#define SCREEN_WEATHER_DURATION_MS  (6UL * 1000UL)
-
 // Wie oft die Raumtemperatur per I2C vom DevKit abgefragt wird -- an
 // dessen eigenes Mess-Intervall angelehnt (ROOM_TEMP_POLL_INTERVAL_MS in
 // esp32_radio_bt/config.h), häufigeres Abfragen brächte nichts.

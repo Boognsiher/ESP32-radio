@@ -67,6 +67,25 @@ namespace {
       "<title>" + title + "</title><style>" + CSS + "</style></head><body>";
   }
 
+  // Emoji-Icons fürs Webinterface (Browser rendern die problemlos --
+  // anders als der kleine Geräte-Font, siehe display.cpp fmtTempC-
+  // Kommentar). Bewusst als reine \u/\U-Unicode-Escapes geschrieben statt
+  // rohe Emoji-Zeichen im Quelltext, um jedes Risiko von verstümmelten
+  // Bytes beim Bearbeiten/Übertragen der Datei auszuschliessen.
+  String iconEmoji(Weather::Icon icon) {
+    using Icon = Weather::Icon;
+    switch (icon) {
+      case Icon::SUN:           return "☀️";  // Sonne
+      case Icon::PARTLY_CLOUDY: return "⛅";         // Sonne hinter Wolke
+      case Icon::CLOUDY:        return "☁️";  // Wolke
+      case Icon::FOG:           return "\U0001F32B";     // Nebel
+      case Icon::RAIN:          return "\U0001F327";     // Regenwolke
+      case Icon::SNOW:          return "❄️";  // Schneeflocke
+      case Icon::STORM:         return "⛈️";  // Gewitterwolke
+      default:                  return "?";
+    }
+  }
+
   void handleRoot() {
     String html = pageHead("ESP32 RADIO");
     html += "<h1>>> ESP32 RADIO</h1>";
@@ -81,11 +100,32 @@ namespace {
     html += "<br>NETZWERK: ";
     html += Radio::wifiConnected() ? "<span class='ok'>" + WiFi.localIP().toString() + "</span>"
                                     : "<span style='color:#cc2200'>OFFLINE</span>";
-    html += "<br>WETTER&nbsp;&nbsp;: ";
-    Weather::HourSlot wxNow = Weather::now();
-    html += wxNow.valid ? String(wxNow.tempC, 1) + "&deg;C" : "n/a";
-    html += " | RAUM: ";
+    html += "<br>RAUM&nbsp;&nbsp;&nbsp;&nbsp;: ";
     html += Radio::roomTempValid() ? String(Radio::roomTempC(), 1) + "&deg;C" : "n/a";
+    html += "</div>";
+
+    html += "<h2>// WETTER</h2><div class='card' style='display:flex;justify-content:space-around;text-align:center'>";
+    {
+      Weather::HourSlot wxNow = Weather::now();
+      Weather::HourSlot wxPlus6 = Weather::plus6h();
+      Weather::DaySlot  wxToday = Weather::today();
+      Weather::DaySlot  wxTomorrow = Weather::tomorrow();
+
+      auto hourCol = [&](const String &label, const Weather::HourSlot &s) {
+        html += "<div><div class='dim' style='font-size:10px'>" + label + "</div>";
+        html += "<div style='font-size:22px'>" + (s.valid ? iconEmoji(s.icon) : String("-")) + "</div>";
+        html += "<div>" + (s.valid ? String(s.tempC, 0) + "&deg;" : String("n/a")) + "</div></div>";
+      };
+      auto dayCol = [&](const String &label, const Weather::DaySlot &s) {
+        html += "<div><div class='dim' style='font-size:10px'>" + label + "</div>";
+        html += "<div style='font-size:22px'>" + (s.valid ? iconEmoji(s.icon) : String("-")) + "</div>";
+        html += "<div>" + (s.valid ? String(s.tempMin, 0) + "/" + String(s.tempMax, 0) + "&deg;" : String("n/a")) + "</div></div>";
+      };
+      hourCol("JETZT", wxNow);
+      hourCol("+6H", wxPlus6);
+      dayCol("HEUTE", wxToday);
+      dayCol("MORGEN", wxTomorrow);
+    }
     html += "</div>";
 
     html += "<h2>// SENDER AUSWAHL</h2>";

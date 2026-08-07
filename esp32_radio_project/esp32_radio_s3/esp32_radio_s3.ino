@@ -8,10 +8,11 @@
  * kommt über I2C vom DevKitV1 (siehe CLAUDE.md: dort sitzen die Taster,
  * weil am S3 keine freien Pins mehr sind).
  *
- * Zusätzlich: Wetter-Anzeige (Open-Meteo, Standort im Webinterface
- * einstellbar) und Raumtemperatur (optionaler DS18B20 am DevKit, per
- * I2C durchgereicht) -- Display wechselt periodisch zwischen Radio- und
- * Wetter-Ansicht (siehe radio.cpp).
+ * Zusätzlich: Wetter (Open-Meteo, Standort im Webinterface einstellbar)
+ * und Raumtemperatur (optionaler DS18B20 am DevKit, per I2C
+ * durchgereicht) laufen als kompakte Zusammenfassungszeile permanent im
+ * Radio-Screen mit, kein Umschalten nötig -- die volle Vorhersage
+ * (jetzt/+6h/heute/morgen) zeigt das Webinterface.
  *
  * Vollständige Spezifikation: ../CLAUDE.md
  * Verkabelung: ../hardware/pinout.md
