@@ -30,3 +30,10 @@
 // Retries für set_auto_reconnect() bei fester MAC-Zieladresse, bevor die
 // Library auf Discovery-Scan zurückfällt (siehe bt_a2dp.cpp).
 #define BT_MAC_RECONNECT_RETRIES 5
+
+// --- Raumtemperatur-Sensor (DS18B20, 1-Wire) ---
+// Optional: ohne angeschlossenen Sensor liefert I2C_CMD_GET_ROOM_TEMP
+// einfach valid=0, der S3 zeigt dann "n/a" -- kein Pflichtbestandteil.
+// GPIO 14 ist frei, keine Strapping-Pin-Problematik (anders als 0/2/5/12/15).
+#define PIN_ROOM_TEMP_SENSOR      14
+#define ROOM_TEMP_POLL_INTERVAL_MS 30000   // wie oft neu gemessen wird

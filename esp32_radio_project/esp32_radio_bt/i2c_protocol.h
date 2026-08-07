@@ -30,6 +30,10 @@
 #define I2C_CMD_GET_BUTTONS        0x00   // Antwort: [event, stationIdx, chk]  (3 Byte)
 #define I2C_CMD_START_SCAN         0x01   // kein Antwort-Request
 #define I2C_CMD_GET_SCAN_STATUS    0x02   // Antwort: [state, count, chk]       (3 Byte)
+#define I2C_CMD_GET_ROOM_TEMP      0x03   // Antwort: [tempLo, tempHi, valid, chk] (4 Byte).
+                                           // temp = int16, 0.1°C-Einheiten (z.B. 235 = 23.5°C,
+                                           // -52 = -5.2°C). valid=0 -> Sensor fehlt/Fehler,
+                                           // tempLo/Hi dann ignorieren.
 #define I2C_CMD_GET_SCAN_DEVICE    0x10   // + Index 0..7,  Antwort: Scan-Record (s.u.)
 #define I2C_CMD_SET_BT_TARGET      0x20   // + Namensbytes, kein Antwort-Request
 #define I2C_CMD_SET_BT_MAC         0x21   // + 6 Rohbytes MAC-Adresse, kein Antwort-Request.

@@ -1,11 +1,17 @@
 #pragma once
 #include <Arduino.h>
+#include "weather.h"
 
 // Ansteuerung des runden 1.5" ST77916-QSPI-Displays im Phosphor-Grün-
 // Retro-Stil. Redraw-Strategie ist bewusst ereignisgesteuert (CLAUDE.md
 // Stolperstein #5): showStation()/setTrackInfo()/setWifiInfo() lösen
 // nur bei tatsächlicher Änderung einen Vollbild-Redraw aus, tick()
 // aktualisiert Scroll-Text und ON-AIR-Blinken jeweils nur zeilenweise.
+//
+// Zwei Bildschirme, per showStation()/showWeather() umschaltbar (Wechsel
+// steuert radio.cpp zeitgesteuert, siehe SCREEN_*_DURATION_MS): Radio
+// (Sender/Titel/Status) und Wetter (Icon+Temperatur jetzt/+6h/heute/
+// morgen + Raumtemperatur vom DS18B20-Sensor).
 namespace Display {
   void begin();
 
@@ -28,7 +34,15 @@ namespace Display {
   // aus; reine IP-Aktualisierungen werden nur zeilenweise nachgezogen.
   void setWifiInfo(bool connected, const String &ip);
 
+  // Wetter-Bildschirm: kompletter Redraw. Von radio.cpp zeitgesteuert
+  // aufgerufen (Screen-Rotation), sowie bei neuen Wetter-/Sensordaten.
+  // invalid-Slots (valid=false) werden als "n/a" dargestellt.
+  void showWeather(const Weather::HourSlot &now, const Weather::HourSlot &plus6h,
+                    const Weather::DaySlot &today, const Weather::DaySlot &tomorrow,
+                    bool roomValid, float roomCelsius);
+
   // Muss regelmässig aus loop() aufgerufen werden: kümmert sich intern
-  // um Scroll-Text (alle 350ms) und ON-AIR-Blinken (alle 800ms).
+  // um Scroll-Text (alle 350ms) und ON-AIR-Blinken (alle 800ms) auf dem
+  // Radio-Bildschirm. Auf dem Wetter-Bildschirm ein no-op.
   void tick();
 }

@@ -3,11 +3,15 @@
  * ===========================================================================
  * Empfängt Audio per I2S vom Xiao S3, gibt es per Bluetooth A2DP an einen
  * konfigurierten Lautsprecher weiter (Auto-Reconnect), liest 3 Sender-
- * Taster und beantwortet I2C-Anfragen des S3 (Taster-Status, BT-Geräte-
- * Scan, neues BT-Ziel per Name oder fester MAC-Adresse setzen).
+ * Taster, misst optional die Raumtemperatur (DS18B20) und beantwortet
+ * I2C-Anfragen des S3 (Taster-Status, BT-Geräte-Scan, Raumtemperatur,
+ * neues BT-Ziel per Name oder fester MAC-Adresse setzen).
  *
  * Verbindung per fester MAC-Adresse (falls gesetzt) hat Vorrang vor der
  * Namenssuche und ist zuverlässiger, da kein Discovery-Scan nötig ist.
+ *
+ * Der DS18B20-Temperatursensor ist optional: ohne angeschlossenen Sensor
+ * meldet RoomSensor::isValid() dauerhaft false, der S3 zeigt dann "n/a".
  *
  * Vollständige Spezifikation: ../CLAUDE.md
  * Verkabelung: ../hardware/pinout.md
@@ -19,9 +23,11 @@
  *   scan                         ca. 12s nach sichtbaren BT-Classic-Geräten suchen
  *   status                        aktueller Status ausgeben
  *
- * Benötigte Library (Board-Package **2.0.x** -- siehe CLAUDE.md
+ * Benötigte Libraries (Board-Package **2.0.x** -- siehe CLAUDE.md
  * Stolperstein #2):
  *   - "ESP32-A2DP" von pschatzmann
+ *   - "OneWire" von Paul Stoffregen
+ *   - "DallasTemperature" von milesburton
  */
 
 #include "config.h"
@@ -31,6 +37,7 @@
 #include "bt_scan.h"
 #include "i2c_slave.h"
 #include "serial_console.h"
+#include "room_sensor.h"
 
 void setup() {
   Serial.begin(115200);
@@ -41,11 +48,13 @@ void setup() {
   I2sAudio::begin();
   BtScan::begin();
   I2cSlave::begin();
+  RoomSensor::begin();
   BtA2dp::begin();
 }
 
 void loop() {
   Buttons::poll();
+  RoomSensor::loop();
   I2cSlave::handlePendingBtTarget();
   SerialConsole::poll();
   delay(10);

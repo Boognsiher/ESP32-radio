@@ -5,6 +5,7 @@
 #include "radio.h"
 #include "i2c_master.h"
 #include "wifi_manager.h"
+#include "weather.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
@@ -80,6 +81,11 @@ namespace {
     html += "<br>NETZWERK: ";
     html += Radio::wifiConnected() ? "<span class='ok'>" + WiFi.localIP().toString() + "</span>"
                                     : "<span style='color:#cc2200'>OFFLINE</span>";
+    html += "<br>WETTER&nbsp;&nbsp;: ";
+    Weather::HourSlot wxNow = Weather::now();
+    html += wxNow.valid ? String(wxNow.tempC, 1) + "&deg;C" : "n/a";
+    html += " | RAUM: ";
+    html += Radio::roomTempValid() ? String(Radio::roomTempC(), 1) + "&deg;C" : "n/a";
     html += "</div>";
 
     html += "<h2>// SENDER AUSWAHL</h2>";
@@ -102,6 +108,15 @@ namespace {
       html += "</div>";
     }
     html += "<button type='submit' class='btn btn-full'>// SPEICHERN &amp; NEUSTART</button></form>";
+
+    html += "<h2>// STANDORT (WETTER)</h2><form method='POST' action='/savelocation'>";
+    html += "<div class='card'>";
+    html += "<div class='surl' style='margin-bottom:8px'>Koordinaten des Aufstellungsorts fuer die "
+             "Wettervorhersage (z.B. von openstreetmap.org/#map abgelesen).</div>";
+    html += "<label>BREITENGRAD (LATITUDE)</label><input name='lat' value='" + String(Weather::latitude(), 6) + "' required>";
+    html += "<label>LAENGENGRAD (LONGITUDE)</label><input name='lon' value='" + String(Weather::longitude(), 6) + "' required>";
+    html += "<button type='submit' class='btn btn-full' style='margin-top:8px'>// SPEICHERN</button>";
+    html += "</div></form>";
 
     html += "<h2>// SYSTEM</h2><div class='card'>";
     html += "<button class='btn' onclick=\"if(confirm('WLAN zuruecksetzen?'))location='/resetwifi'\">WLAN RESET</button> ";
@@ -129,6 +144,19 @@ namespace {
     }
     Stations::save();
     Radio::startStation(Radio::currentStation());
+    server.sendHeader("Location", "/");
+    server.send(302);
+  }
+
+  void handleSaveLocation() {
+    if (server.hasArg("lat") && server.hasArg("lon")) {
+      float lat = server.arg("lat").toFloat();
+      float lon = server.arg("lon").toFloat();
+      // Grobe Plausibilitätsprüfung statt blind zu übernehmen.
+      if (lat >= -90.0f && lat <= 90.0f && lon >= -180.0f && lon <= 180.0f) {
+        Weather::setLocation(lat, lon);
+      }
+    }
     server.sendHeader("Location", "/");
     server.send(302);
   }
@@ -262,6 +290,7 @@ void begin() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/play", HTTP_GET, handlePlay);
   server.on("/save", HTTP_POST, handleSave);
+  server.on("/savelocation", HTTP_POST, handleSaveLocation);
   server.on("/resetwifi", HTTP_GET, handleResetWifi);
   server.on("/reboot", HTTP_GET, handleReboot);
   server.on("/btscan", HTTP_GET, handleBtScanPage);

@@ -38,3 +38,21 @@
 #define MDNS_HOSTNAME     "esp32radio"
 
 #define STATION_COUNT 3
+
+// --- Wetter (Open-Meteo, kostenlos, kein API-Key) ---
+#define WEATHER_API_HOST      "api.open-meteo.com"
+// Default-Standort Zürich -- im Webinterface auf den echten Standort
+// (z.B. Wohnort der Grosseltern) umstellbar, NVS-persistiert.
+#define WEATHER_DEFAULT_LAT   47.3769f
+#define WEATHER_DEFAULT_LON   8.5417f
+#define WEATHER_FETCH_INTERVAL_MS   (20UL * 60UL * 1000UL)   // alle 20 Minuten
+#define WEATHER_HTTP_TIMEOUT_MS     8000
+
+// --- Anzeige-Rotation: Radio-Screen <-> Wetter-Screen ---
+#define SCREEN_RADIO_DURATION_MS    (12UL * 1000UL)
+#define SCREEN_WEATHER_DURATION_MS  (6UL * 1000UL)
+
+// Wie oft die Raumtemperatur per I2C vom DevKit abgefragt wird -- an
+// dessen eigenes Mess-Intervall angelehnt (ROOM_TEMP_POLL_INTERVAL_MS in
+// esp32_radio_bt/config.h), häufigeres Abfragen brächte nichts.
+#define ROOM_TEMP_I2C_POLL_MS  20000

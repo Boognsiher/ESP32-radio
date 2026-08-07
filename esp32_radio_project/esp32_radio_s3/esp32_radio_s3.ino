@@ -8,6 +8,11 @@
  * kommt über I2C vom DevKitV1 (siehe CLAUDE.md: dort sitzen die Taster,
  * weil am S3 keine freien Pins mehr sind).
  *
+ * Zusätzlich: Wetter-Anzeige (Open-Meteo, Standort im Webinterface
+ * einstellbar) und Raumtemperatur (optionaler DS18B20 am DevKit, per
+ * I2C durchgereicht) -- Display wechselt periodisch zwischen Radio- und
+ * Wetter-Ansicht (siehe radio.cpp).
+ *
  * Vollständige Spezifikation: ../CLAUDE.md
  * Verkabelung: ../hardware/pinout.md
  *
@@ -15,8 +20,9 @@
  * "Huge APP" -- siehe CLAUDE.md Stolperstein #2/#3):
  *   - "GFX Library for Arduino" von moononournation
  *   - "ESP32-audioI2S" von schreibfaul2
- *   (WiFi/WebServer/DNSServer/ESPmDNS/Preferences/Wire sind Teil des
- *   ESP32-Board-Packages)
+ *   - "ArduinoJson" von bblanchon (Version 6.x)
+ *   (WiFi/WebServer/DNSServer/ESPmDNS/Preferences/Wire/HTTPClient/
+ *   WiFiClientSecure sind Teil des ESP32-Board-Packages)
  */
 
 #include "config.h"
@@ -25,6 +31,7 @@
 #include "wifi_manager.h"
 #include "audio_stream.h"
 #include "i2c_master.h"
+#include "weather.h"
 #include "radio.h"
 #include "web_server.h"
 
@@ -54,6 +61,7 @@ void setup() {
   }
 
   Radio::setWifiConnected(true);
+  Weather::begin();
   RadioWeb::begin();
   Radio::startStation(Stations::loadCurrentIndex());
 }

@@ -4,9 +4,11 @@
 #include "buttons.h"
 #include "bt_scan.h"
 #include "bt_a2dp.h"
+#include "room_sensor.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <string.h>
+#include <math.h>
 
 namespace {
   volatile uint8_t lastCommand = I2C_CMD_GET_BUTTONS;
@@ -54,6 +56,8 @@ namespace {
       lastCommand = I2C_CMD_GET_BUTTONS;
     } else if (cmd == I2C_CMD_GET_SCAN_STATUS) {
       lastCommand = I2C_CMD_GET_SCAN_STATUS;
+    } else if (cmd == I2C_CMD_GET_ROOM_TEMP) {
+      lastCommand = I2C_CMD_GET_ROOM_TEMP;
     } else if (cmd >= I2C_CMD_GET_SCAN_DEVICE && cmd < I2C_CMD_GET_SCAN_DEVICE + I2C_SCAN_MAX_DEVICES) {
       lastCommand = cmd;
       requestedDeviceIdx = cmd - I2C_CMD_GET_SCAN_DEVICE;
@@ -67,6 +71,16 @@ namespace {
       uint8_t buf[3] = { BtScan::state(), BtScan::count(), 0 };
       buf[2] = i2cChecksum(buf, 2);
       Wire.write(buf, 3);
+    } else if (lastCommand == I2C_CMD_GET_ROOM_TEMP) {
+      int16_t tempTenths = 0;
+      uint8_t valid = 0;
+      if (RoomSensor::isValid()) {
+        valid = 1;
+        tempTenths = (int16_t)lroundf(RoomSensor::getCelsius() * 10.0f);
+      }
+      uint8_t buf[4] = { (uint8_t)(tempTenths & 0xFF), (uint8_t)((tempTenths >> 8) & 0xFF), valid, 0 };
+      buf[3] = i2cChecksum(buf, 3);
+      Wire.write(buf, 4);
     } else if (lastCommand >= I2C_CMD_GET_SCAN_DEVICE) {
       uint8_t buf[I2C_SCAN_RECORD_LEN];
       memset(buf, 0, sizeof(buf));

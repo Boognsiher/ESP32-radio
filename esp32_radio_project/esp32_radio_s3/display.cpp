@@ -1,6 +1,7 @@
 #include "display.h"
 #include "config.h"
 #include <Arduino_GFX_Library.h>
+#include <math.h>
 
 namespace {
 
@@ -54,6 +55,13 @@ bool   wifiOk = false;
 String ipText;
 bool   onRadioScreen = false;
 
+// --- Wetter-Bildschirm-State ---
+bool   onWeatherScreen = false;
+Weather::HourSlot wxNow, wxPlus6;
+Weather::DaySlot  wxToday, wxTomorrow;
+bool   roomTempValid = false;
+float  roomTempC = 0;
+
 int scrollPos = 0;
 unsigned long lastScroll = 0, lastBlink = 0;
 
@@ -66,14 +74,84 @@ String scrolled(const String &text, int maxChars, int &pos) {
   return out;
 }
 
-void drawCentered(const String &text, int y, int size, uint16_t color) {
+void drawCenteredAt(const String &text, int x, int y, int size, uint16_t color) {
   gfx->setTextSize(size);
   int16_t x1, y1;
   uint16_t w, h;
   gfx->getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
-  gfx->setCursor(CTR_X - w / 2, y);
+  gfx->setCursor(x - w / 2, y);
   gfx->setTextColor(color, COL_BG);
   gfx->print(text);
+}
+
+void drawCentered(const String &text, int y, int size, uint16_t color) {
+  drawCenteredAt(text, CTR_X, y, size, color);
+}
+
+// Ganzzahlig gerundete Temperatur ohne Grad-Zeichen (Standard-Font der
+// GFX-Library führt u.U. kein '°'-Glyph -- "18C" statt "18°C" ist auf
+// dem Gerätedisplay daher sicherer; das Webinterface nutzt echtes UTF-8).
+String fmtTempC(float c) {
+  return String((int)roundf(c)) + "C";
+}
+
+String fmtTempRange(float lo, float hi) {
+  return String((int)roundf(lo)) + "/" + String((int)roundf(hi)) + "C";
+}
+
+// Einfache Vektor-Icons (kein Bitmap-Datenmaterial nötig), Phosphor-Grün.
+void drawCloud(int cx, int cy, int r, uint16_t color) {
+  gfx->fillCircle(cx - r / 3, cy, r / 3, color);
+  gfx->fillCircle(cx + r / 4, cy - r / 8, r / 3, color);
+  gfx->fillCircle(cx + r / 2, cy + r / 6, r / 4, color);
+  gfx->fillRect(cx - r / 2, cy, r, r / 3 + 1, color);
+}
+
+void drawWeatherIcon(int cx, int cy, int r, Weather::Icon icon, uint16_t color) {
+  using Icon = Weather::Icon;
+  switch (icon) {
+    case Icon::SUN: {
+      gfx->fillCircle(cx, cy, r / 2, color);
+      for (int a = 0; a < 360; a += 45) {
+        float rad = a * PI / 180.0f;
+        int x1 = cx + (int)(cosf(rad) * (r / 2 + 3));
+        int y1 = cy + (int)(sinf(rad) * (r / 2 + 3));
+        int x2 = cx + (int)(cosf(rad) * r);
+        int y2 = cy + (int)(sinf(rad) * r);
+        gfx->drawLine(x1, y1, x2, y2, color);
+      }
+      break;
+    }
+    case Icon::PARTLY_CLOUDY:
+      gfx->fillCircle(cx - r / 3, cy - r / 4, r / 3, color);
+      drawCloud(cx + r / 8, cy + r / 6, r, color);
+      break;
+    case Icon::CLOUDY:
+      drawCloud(cx, cy, r, color);
+      break;
+    case Icon::FOG:
+      for (int i = 0; i < 3; i++)
+        gfx->drawFastHLine(cx - r, cy - r / 3 + i * (r / 3), r * 2, color);
+      break;
+    case Icon::RAIN:
+      drawCloud(cx, cy - r / 4, r, color);
+      for (int i = -1; i <= 1; i++)
+        gfx->drawLine(cx + i * (r / 3), cy + r / 4, cx + i * (r / 3) - 2, cy + r / 2 + 5, color);
+      break;
+    case Icon::SNOW:
+      drawCloud(cx, cy - r / 4, r, color);
+      for (int i = -1; i <= 1; i++)
+        gfx->fillCircle(cx + i * (r / 3), cy + r / 2, 2, color);
+      break;
+    case Icon::STORM:
+      drawCloud(cx, cy - r / 4, r, color);
+      gfx->fillTriangle(cx - 2, cy + r / 4, cx + 5, cy + r / 4, cx - 3, cy + r / 2 + 6, color);
+      break;
+    default:
+      gfx->drawCircle(cx, cy, r / 2, color);
+      drawCenteredAt("?", cx, cy - 4, 1, color);
+      break;
+  }
 }
 
 void drawTitleLine() {
@@ -122,6 +200,45 @@ void fullRedraw() {
   drawStatusLine();
 }
 
+// --- Wetter-Bildschirm-Layout: 4 Spalten (jetzt/+6h/heute/morgen) ---
+constexpr int WX_COL_Y_LABEL = SAFE_T + 34;
+constexpr int WX_COL_Y_ICON  = SAFE_T + 68;
+constexpr int WX_ICON_R      = 16;
+constexpr int WX_COL_Y_TEMP  = SAFE_T + 96;
+constexpr int WX_RULE_Y      = SAFE_T + 114;
+constexpr int WX_ROOM_Y      = SAFE_T + 148;
+constexpr int WX_ROOM_LABEL_Y = SAFE_T + 128;
+
+int wxColX(int i) { return SAFE_L + (SAFE_W * (2 * i + 1)) / 8; }  // 4 Spalten, gleich verteilt
+
+void drawWeatherColumn(int col, const String &label, bool valid, Weather::Icon icon, const String &tempText) {
+  int x = wxColX(col);
+  drawCenteredAt(label, x, WX_COL_Y_LABEL, 1, COL_MID);
+  if (valid) {
+    drawWeatherIcon(x, WX_COL_Y_ICON, WX_ICON_R, icon, COL_BRIGHT);
+    drawCenteredAt(tempText, x, WX_COL_Y_TEMP, 1, COL_BRIGHT);
+  } else {
+    drawCenteredAt("n/a", x, WX_COL_Y_ICON, 1, COL_DIM);
+  }
+}
+
+void weatherRedraw() {
+  gfx->fillScreen(COL_BG);
+  gfx->drawCircle(CTR_X, CTR_Y, 179, COL_DIM);
+
+  drawCentered(">> WETTER", Y_HEADER, 2, COL_MID);
+
+  drawWeatherColumn(0, "JETZT",   wxNow.valid,      wxNow.icon,      wxNow.valid ? fmtTempC(wxNow.tempC) : "");
+  drawWeatherColumn(1, "+6H",     wxPlus6.valid,    wxPlus6.icon,    wxPlus6.valid ? fmtTempC(wxPlus6.tempC) : "");
+  drawWeatherColumn(2, "HEUTE",   wxToday.valid,    wxToday.icon,    wxToday.valid ? fmtTempRange(wxToday.tempMin, wxToday.tempMax) : "");
+  drawWeatherColumn(3, "MORGEN",  wxTomorrow.valid, wxTomorrow.icon, wxTomorrow.valid ? fmtTempRange(wxTomorrow.tempMin, wxTomorrow.tempMax) : "");
+
+  gfx->drawFastHLine(SAFE_L, WX_RULE_Y, SAFE_W, COL_MID);
+
+  drawCentered("RAUMTEMPERATUR", WX_ROOM_LABEL_Y, 1, COL_MID);
+  drawCentered(roomTempValid ? fmtTempC(roomTempC) : "n/a", WX_ROOM_Y, 3, COL_GLOW);
+}
+
 } // namespace
 
 namespace Display {
@@ -134,6 +251,7 @@ void begin() {
 
 void showMessage(const String &line1, const String &line2) {
   onRadioScreen = false;
+  onWeatherScreen = false;
   gfx->fillScreen(COL_BG);
   gfx->drawCircle(CTR_X, CTR_Y, 179, COL_MID);
   drawCentered(line1, CTR_Y - 20, 3, COL_BRIGHT);
@@ -144,6 +262,7 @@ void showStation(int idx, int total, const String &name) {
   stationIdx = idx; stationTotal = total; stationName = name;
   scrollPos = 0;
   onRadioScreen = true;
+  onWeatherScreen = false;
   fullRedraw();
 }
 
@@ -164,6 +283,16 @@ void setWifiInfo(bool connected, const String &ip) {
   wifiOk = connected; ipText = ip;
   if (!onRadioScreen) return;
   if (changed) fullRedraw(); else drawStatusLine();
+}
+
+void showWeather(const Weather::HourSlot &now, const Weather::HourSlot &plus6h,
+                  const Weather::DaySlot &today, const Weather::DaySlot &tomorrow,
+                  bool roomValid, float roomCelsius) {
+  wxNow = now; wxPlus6 = plus6h; wxToday = today; wxTomorrow = tomorrow;
+  roomTempValid = roomValid; roomTempC = roomCelsius;
+  onRadioScreen = false;
+  onWeatherScreen = true;
+  weatherRedraw();
 }
 
 void tick() {

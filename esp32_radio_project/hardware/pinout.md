@@ -42,10 +42,27 @@ SDA/SCL nach 3.3V empfohlen (siehe Stolperstein #6 in `CLAUDE.md`).
 | Sender 2 | 13 | intern (`INPUT_PULLUP`) |
 | Sender 3 | 27 | intern (`INPUT_PULLUP`) |
 
-## Pin-Bilanz Xiao S3
+## Raumtemperatur-Sensor (DS18B20, 1-Wire, optional) → DevKitV1
 
-Alle 11 Header-Pins (D0–D10) belegt: Display 6 + I2S 3 + I2C 2 = 11.
-Kein Pin mehr frei.
+| Funktion | GPIO | Hinweis |
+|---|---|---|
+| DATA | 14 | + externer 4.7kΩ-Pull-up nach 3.3V (Standard bei 1-Wire) |
+| VCC  | – | 3.3V |
+| GND  | – | GND |
+
+Kein Pflichtbestandteil: ohne angeschlossenen Sensor meldet das DevKit
+per I2C einfach "kein gültiger Wert", der S3 zeigt dann "n/a" auf dem
+Wetter-Bildschirm. GPIO 14 ist frei und keine Strapping-Pin-Problematik
+(anders als GPIO 0/2/5/12/15).
+
+## Pin-Bilanz
+
+**Xiao S3**: Alle 11 Header-Pins (D0–D10) belegt: Display 6 + I2S 3 +
+I2C 2 = 11. Kein Pin mehr frei -- zusätzliche Sensoren nur am DevKit
+möglich, nicht am S3 (siehe CLAUDE.md).
+
+**DevKitV1**: aktuell 9 von ca. 25 nutzbaren GPIOs belegt (I2S 3, I2C 2,
+Taster 3, Temperatursensor 1) -- reichlich Reserve für weitere Sensoren.
 
 ## Stromversorgung
 

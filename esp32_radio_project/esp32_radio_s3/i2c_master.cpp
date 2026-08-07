@@ -61,6 +61,25 @@ bool getScanStatus(ScanStatus &out) {
   return true;
 }
 
+bool getRoomTemp(float &outCelsius, bool &outValid) {
+  sendCommand(I2C_CMD_GET_ROOM_TEMP);
+  delay(5);
+  uint8_t got = Wire.requestFrom((int)I2C_SLAVE_ADDR, 4);
+  if (got < 4 || Wire.available() < 4) return false;
+
+  uint8_t buf[4];
+  for (int i = 0; i < 4; i++) buf[i] = Wire.read();
+  if (buf[3] != i2cChecksum(buf, 3)) return false;
+  if (buf[2] > 1) return false;  // valid-Flag muss 0 oder 1 sein
+
+  outValid = (buf[2] == 1);
+  if (outValid) {
+    int16_t tempTenths = (int16_t)((uint16_t)buf[0] | ((uint16_t)buf[1] << 8));
+    outCelsius = tempTenths / 10.0f;
+  }
+  return true;
+}
+
 bool getScanDevice(uint8_t index, ScanDevice &out) {
   if (index >= I2C_SCAN_MAX_DEVICES) return false;
   sendCommand(I2C_CMD_GET_SCAN_DEVICE + index);

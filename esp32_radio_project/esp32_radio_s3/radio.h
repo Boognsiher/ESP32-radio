@@ -18,4 +18,10 @@ namespace Radio {
 
   void setWifiConnected(bool connected);
   bool wifiConnected();
+
+  // Zuletzt per I2C abgefragte Raumtemperatur (DS18B20 am DevKit,
+  // optional). roomTempValid()==false, solange kein Sensor angeschlossen
+  // ist oder noch keine plausible Antwort einging.
+  bool roomTempValid();
+  float roomTempC();
 }

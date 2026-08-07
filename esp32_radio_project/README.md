@@ -33,7 +33,8 @@ Beide Sketches sind je in kleine, fachlich getrennte Module aufgeteilt
 | `wifi_manager.*` – WLAN-Connect + Captive Portal | `bt_scan.*` – klassischer BT-Inquiry-Scan |
 | `i2c_master.*` – I2C-Protokoll, Master-Seite | `i2c_slave.*` – I2C-Protokoll, Slave-Seite |
 | `radio.*` – zentraler Zustand/Koordination | `serial_console.*` – Serial-Kommandos |
-| `web_server.*` – Retro-Webinterface | |
+| `web_server.*` – Retro-Webinterface | `room_sensor.*` – DS18B20-Raumtemperatur (optional) |
+| `weather.*` – Open-Meteo-Wetterdaten | |
 
 `i2c_protocol.h` liegt identisch in beiden Sketch-Ordnern (Arduino kann
 keine Header ausserhalb des Sketch-Ordners einbinden) und definiert das
@@ -58,13 +59,38 @@ Vorrang vor dem Namen.
 - **Serial** (DevKitV1, 115200 Baud): `setbtmac:AA:BB:CC:DD:EE:FF` /
   `clearbtmac` (zusätzlich zu `setbt:NAME`, `scan`, `status`).
 
+### Wetter + Raumtemperatur
+
+Der runde Bildschirm wechselt automatisch alle paar Sekunden zwischen
+Radio-Ansicht und Wetter-Ansicht (Icon + Temperatur für jetzt/+6h/heute/
+morgen, per [Open-Meteo](https://open-meteo.com/) – kostenlos, kein
+API-Key) sowie der Raumtemperatur eines optionalen DS18B20-Sensors am
+DevKit (siehe `hardware/pinout.md`). Kein Sensor angeschlossen -> zeigt
+einfach "n/a", kein Fehlerzustand.
+
+- **Standort**: im Webinterface unter "// STANDORT (WETTER)" als
+  Lat/Lon einstellbar, NVS-persistiert, Default Zürich.
+- **Icons**: einfache Vektor-Grafiken (Sonne/Wolke/Regen/Schnee/Gewitter/
+  Nebel) im Phosphor-Grün-Stil, kein Bild-Datenmaterial nötig.
+- Die Raumtemperatur wird per I2C vom DevKit abgefragt (neues Kommando
+  `I2C_CMD_GET_ROOM_TEMP`, gleiche Checksummen-Plausibilitätsprüfung wie
+  die übrigen I2C-Antworten).
+- HTTPS-Abruf bei Open-Meteo ist hier unproblematisch (anders als bei
+  Audio-Streams, CLAUDE.md Stolperstein #9 betrifft nur kontinuierliche
+  Übertragung): seltene, kleine JSON-Antworten ohne Knack-/Klick-Risiko.
+  Das Server-Zertifikat wird nicht geprüft (`setInsecure()`), da nur
+  öffentliche, nicht-sensible Wetterdaten abgerufen werden.
+
 ## Benötigte Libraries
 
 - **GFX Library for Arduino** (moononournation) – Display-Treiber
 - **ESP32-audioI2S** (schreibfaul2) – MP3-Streaming/I2S-Ausgabe (Xiao S3)
 - **ESP32-A2DP** (pschatzmann) – Bluetooth-A2DP-Quelle (DevKitV1)
-- WiFi, WebServer, DNSServer, ESPmDNS, Preferences, Wire – Teil des
-  ESP32-Board-Packages
+- **ArduinoJson** (bblanchon, Version 6.x) – Wetterdaten-Parsing (Xiao S3)
+- **OneWire** (Paul Stoffregen) + **DallasTemperature** (milesburton) –
+  DS18B20-Raumtemperatursensor (DevKitV1)
+- WiFi, WebServer, DNSServer, ESPmDNS, Preferences, Wire, HTTPClient,
+  WiFiClientSecure – Teil des ESP32-Board-Packages
 
 ## Build
 

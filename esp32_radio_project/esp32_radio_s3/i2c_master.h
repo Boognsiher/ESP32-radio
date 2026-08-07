@@ -17,6 +17,12 @@ namespace I2cMaster {
   struct ScanStatus { uint8_t state; uint8_t count; };
   bool getScanStatus(ScanStatus &out);
 
+  // Fragt die Raumtemperatur vom DevKit ab (DS18B20, optional). false =
+  // keine/unplausible Antwort -- Aufrufer behält alten Stand. outValid
+  // spiegelt den valid-Flag aus dem Protokoll (false = kein Sensor
+  // angeschlossen bzw. Lesefehler auf DevKit-Seite).
+  bool getRoomTemp(float &outCelsius, bool &outValid);
+
   struct ScanDevice { String name; String addr; int8_t rssi; };
   bool getScanDevice(uint8_t index, ScanDevice &out);
 
