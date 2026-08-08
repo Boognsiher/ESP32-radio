@@ -104,6 +104,9 @@ namespace {
     html += Radio::roomTempValid() ? String(Radio::roomTempC(), 1) + "&deg;C" : "n/a";
     html += "</div>";
 
+    if (Radio::isPlaying())
+      html += "<button class='btn' style='margin-bottom:12px' onclick=\"location='/stop'\">// STUMM</button>";
+
     html += "<h2>// WETTER</h2><div class='card' style='display:flex;justify-content:space-around;text-align:center'>";
     {
       Weather::HourSlot wxNow = Weather::now();
@@ -176,6 +179,12 @@ namespace {
     server.send(302);
   }
 
+  void handleStop() {
+    Radio::stop();
+    server.sendHeader("Location", "/");
+    server.send(302);
+  }
+
   void handleSave() {
     for (int i = 0; i < STATION_COUNT; i++) {
       String n = server.arg("n" + String(i)); n.trim();
@@ -221,6 +230,16 @@ namespace {
       "<div id='state'>Bereit.</div>"
       "<table><thead><tr><th>NAME</th><th>ADRESSE</th><th>RSSI</th><th></th></tr></thead>"
       "<tbody id='rows'></tbody></table>"
+      "<h2>// PER NAME VERBINDEN</h2>"
+      "<div class='card'>"
+      "<div class='surl' style='margin-bottom:8px'>Name genau wie im Bluetooth-Menu des "
+      "Lautsprechers eintragen -- kein Scan noetig. Hinweis: die BT-Radio kann laut Hardware-Test "
+      "nicht gleichzeitig scannen UND eine Verbindung halten -- Scan oben funktioniert deshalb nur, "
+      "solange (noch) nichts verbunden ist.</div>"
+      "<label>GERAETENAME</label>"
+      "<input id='nameInput' placeholder='z.B. UE BOOM' maxlength='32'>"
+      "<button class='btn btn-full' onclick='connectManualName()'>VERBINDEN</button>"
+      "</div>"
       "<h2>// FESTE MAC-ADRESSE</h2>"
       "<div class='card'>"
       "<div class='surl' style='margin-bottom:8px'>Verbindung per MAC ist zuverlaessiger als per "
@@ -245,6 +264,10 @@ namespace {
       "document.getElementById('state').innerText='Verbinde mit '+mac+' ...';});}"
       "function connectManual(){let m=document.getElementById('macInput').value.trim();"
       "if(!m)return; connectMac(m,m);}"
+      "function connectManualName(){let n=document.getElementById('nameInput').value.trim();"
+      "if(!n)return; if(!confirm('Mit \"'+n+'\" verbinden?'))return;"
+      "fetch('/btscan/connect?name='+encodeURIComponent(n)).then(()=>{"
+      "document.getElementById('state').innerText='Verbinde mit '+n+' ...';});}"
       "function refresh(){fetch('/btscan/data').then(r=>r.json()).then(d=>{"
       "let s=d.state==0?'Bereit.':(d.state==1?'Scanne...':'Fertig ('+d.count+' gefunden).');"
       "document.getElementById('state').innerText=s;"
@@ -329,6 +352,7 @@ namespace RadioWeb {
 void begin() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/play", HTTP_GET, handlePlay);
+  server.on("/stop", HTTP_GET, handleStop);
   server.on("/save", HTTP_POST, handleSave);
   server.on("/savelocation", HTTP_POST, handleSaveLocation);
   server.on("/resetwifi", HTTP_GET, handleResetWifi);

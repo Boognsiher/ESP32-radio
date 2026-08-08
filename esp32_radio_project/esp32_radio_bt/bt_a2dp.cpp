@@ -14,6 +14,11 @@ namespace {
   bool    macMode = false;
   volatile bool connected = false;
 
+  // --- Temporäre Diagnose: kommen über I2S überhaupt reale (nicht-stille)
+  // Samples vom S3 an? (Fehlersuche "verbunden + ON AIR, aber kein Ton")
+  volatile uint32_t dbgCalls = 0, dbgZeroReads = 0;
+  volatile int16_t  dbgMaxAbs = 0;
+
   String macToStr(const uint8_t mac[6]) {
     char buf[18];
     snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -26,16 +31,34 @@ namespace {
     Serial.println(connected ? "[BT] Verbunden" : "[BT] Getrennt - suche neu...");
   }
 
+  // Temporäre Diagnose: die AVDTP-Signalisierungsverbindung (oben,
+  // "verbunden") ist unabhängig vom eigentlichen Audio-STREAMING-Zustand
+  // (Suspended/Started) -- Fehlersuche "verbunden + reale Samples, aber
+  // kein Ton" könnte hier hängen bleiben, falls die Media-Session nie
+  // "Started" erreicht.
+  void audioStateChanged(esp_a2d_audio_state_t state, void *) {
+    const char *names[] = {"Suspended(Remote)", "Started", "Suspended(Stopped)", "Suspended(Local)"};
+    Serial.printf("[BT] Audio-Streaming-Status: %s (%d)\n",
+      (state >= 0 && state <= 3) ? names[state] : "?", (int)state);
+  }
+
   // Von der A2DP-Library aufgerufen, sobald neue Ausgabedaten benötigt
   // werden. Frame besteht aus zwei int16-Kanälen (L/R) -- entspricht
   // exakt dem interleaved-Layout, das I2sAudio::readFrames() liefert,
   // daher direkte Wiederverwendung des Zielpuffers ohne Zwischenkopie.
   int32_t dataCallback(Frame *frame, int32_t frameCount) {
+    dbgCalls++;
     if (!connected) {
       memset(frame, 0, frameCount * sizeof(Frame));
       return frameCount;
     }
     size_t got = I2sAudio::readFrames(reinterpret_cast<int16_t *>(frame), (size_t)frameCount);
+    if (got == 0) dbgZeroReads++;
+    int16_t *samples = reinterpret_cast<int16_t *>(frame);
+    for (size_t i = 0; i < got * 2; i++) {
+      int16_t a = samples[i] < 0 ? -samples[i] : samples[i];
+      if (a > dbgMaxAbs) dbgMaxAbs = a;
+    }
     for (size_t i = got; i < (size_t)frameCount; i++) {
       frame[i].channel1 = 0;
       frame[i].channel2 = 0;
@@ -57,6 +80,7 @@ void begin() {
   // API-Name laut CLAUDE.md Stolperstein #4: set_on_connection_state_changed(),
   // nicht das ältere on_connection_state_changed().
   a2dp.set_on_connection_state_changed(connectionChanged, nullptr);
+  a2dp.set_on_audio_state_changed(audioStateChanged, nullptr);
 
   if (macMode) {
     // set_auto_reconnect(addr, retries) hinterlegt die Adresse als
@@ -75,6 +99,21 @@ void begin() {
 
 bool isConnected() { return connected; }
 String deviceName() { return name; }
+
+// Temporäre Diagnose (siehe dbgCalls/dbgZeroReads/dbgMaxAbs oben) --
+// zeigt, ob dataCallback() überhaupt läuft, ob I2sAudio::readFrames()
+// leer zurückkommt (0 Frames = liest nichts) und ob echte, nicht-stille
+// Samples ankommen (dbgMaxAbs bleibt 0 -> nur Stille/kein Signal).
+void printAudioDebug() {
+  Serial.printf("[AUDIODBG] calls=%lu zeroReads=%lu maxAbsSample=%d\n",
+    (unsigned long)dbgCalls, (unsigned long)dbgZeroReads, dbgMaxAbs);
+  dbgCalls = 0; dbgZeroReads = 0; dbgMaxAbs = 0;
+}
+
+void disconnect() {
+  Serial.println("[BT] Trenne aktiv (fuer Scan)...");
+  a2dp.disconnect();
+}
 
 String targetLabel() {
   return macMode ? ("MAC " + macToStr(targetMac)) : name;

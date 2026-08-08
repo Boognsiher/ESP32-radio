@@ -39,6 +39,16 @@ namespace Display {
   // Clear) -- nur bei tatsächlicher Textänderung wird neu gezeichnet.
   void setInfoLine(const String &text);
 
+  // Kleine "BT"/"BT*"-Anzeige oben links im Radio-Screen (per I2C vom
+  // DevKit abgefragt, siehe radio.cpp) -- nur bei Zustandsänderung Redraw.
+  void setBtConnected(bool connected);
+
+  // Taster-Kombi 1+2 (>=1s gehalten, siehe DevKit buttons.cpp): zeigt
+  // vorübergehend die IP-Adresse an statt des Radio-Screens. radio.cpp
+  // ruft nach Ablauf der Anzeigedauer returnToRadioScreen() auf.
+  void showIpOverlay(const String &ip);
+  void returnToRadioScreen();
+
   // Muss regelmässig aus loop() aufgerufen werden: kümmert sich intern
   // um Scroll-Text (alle 350ms) und ON-AIR-Blinken (alle 800ms).
   void tick();

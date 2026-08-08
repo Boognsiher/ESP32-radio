@@ -4,6 +4,16 @@
 
 namespace I2sAudio {
 
+// Versionshinweis: der Xiao S3 nutzt jetzt ESP32-audioI2S 2.0.0 (siehe
+// display.cpp-Kommentar zur Board-Package-/Bibliotheksversion-Umstellung
+// -- die neuere 3.4.7 blockierte bei bestimmten Streaming-Servern
+// minutenlang beim HTTP-Header-Parsing). 2.0.0 konfiguriert ihr I2S
+// intern mit I2S_BITS_PER_SAMPLE_16BIT (echte 16-Bit-Slots, kein
+// 32-Bit-Padding wie bei 3.4.7) -- der RX-Treiber hier MUSS exakt
+// dieselbe Slot-Breite erwarten (Slave-Modus: er zählt Bits nur relativ
+// zu WS/BCLK vom Master mit, generiert kein eigenes Timing). Deshalb
+// hier bewusst wieder auf 16-Bit/Slot mit direktem Read, kein 32-Bit-
+// Zwischenpuffer/Extraktion mehr nötig.
 void begin() {
   i2s_config_t cfg = {
     .mode = (i2s_mode_t)(I2S_MODE_SLAVE | I2S_MODE_RX),
@@ -27,7 +37,7 @@ void begin() {
   i2s_driver_install(I2S_NUM_0, &cfg, 0, nullptr);
   i2s_set_pin(I2S_NUM_0, &pins);
   i2s_zero_dma_buffer(I2S_NUM_0);
-  Serial.println("[I2S] Initialisiert (RX/Slave)");
+  Serial.println("[I2S] Initialisiert (RX/Slave, 16-Bit-Slots)");
 }
 
 size_t readFrames(int16_t *outLR, size_t frameCount) {

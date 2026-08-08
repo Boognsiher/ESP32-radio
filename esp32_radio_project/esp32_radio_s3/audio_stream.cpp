@@ -24,6 +24,15 @@ void audio_eof_mp3(const char *info) {
   if (endCb) endCb();
 }
 
+// Diagnose: Samplerate/Bitrate/Codec-/Verbindungs-Infos der Library auf
+// Serial spiegeln -- Versionshinweis: 2.0.0 nutzt noch die ältere
+// globale-Weak-Funktion-API (audio_info(const char*)), nicht das neuere
+// Audio::audio_info_callback-Lambda aus 3.4.7 (siehe display.cpp-Kommentar
+// zur Versionswahl).
+void audio_info(const char *info) {
+  Serial.printf("[AUDIO] %s\n", info);
+}
+
 namespace AudioStream {
 
 void begin(int bclkPin, int lrckPin, int doutPin) {

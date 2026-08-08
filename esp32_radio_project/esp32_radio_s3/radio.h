@@ -8,6 +8,12 @@
 namespace Radio {
   void begin();
   void startStation(int idx);
+
+  // Stoppt die Wiedergabe bewusst (z.B. "Stumm bis ich zurueck bin" über
+  // Webinterface) -- anders als ein Verbindungsfehler löst das KEINEN
+  // Auto-Reconnect aus. startStation() erneut aufrufen, um fortzusetzen.
+  void stop();
+
   void loop();
 
   int currentStation();

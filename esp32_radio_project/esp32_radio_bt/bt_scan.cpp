@@ -1,5 +1,6 @@
 #include "bt_scan.h"
 #include "config.h"
+#include "bt_a2dp.h"
 #include <esp_bt.h>
 #include <esp_gap_bt_api.h>
 #include <string.h>
@@ -15,6 +16,15 @@ namespace {
   volatile uint8_t deviceCount = 0;
   volatile uint8_t scanState   = I2C_SCAN_STATE_IDLE;
   bool running = false;
+  unsigned long scanStartedAt = 0;
+
+  // Sicherheitsnetz: BT_SCAN_DURATION_UNITS*1.28s ist die normale Dauer,
+  // bis ESP_BT_GAP_DISCOVERY_STOPPED feuert. Falls die Inquiry aus
+  // irgendeinem Grund nie sauber stoppt, bleibt "running" sonst für immer
+  // hängen und jeder weitere start()-Aufruf wird stillschweigend ignoriert
+  // (Hardware-Test-Feedback: Scan blieb dauerhaft in "läuft"). loop()
+  // erzwingt nach dieser Zeit einen Reset.
+  constexpr unsigned long SCAN_TIMEOUT_MS = (BT_SCAN_DURATION_UNITS * 1280UL) + 5000UL;
 
   void gapCallback(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
     switch (event) {
@@ -75,11 +85,39 @@ void begin() {
 
 void start() {
   if (running) { Serial.println("[SCAN] Laeuft bereits."); return; }
+
+  // WICHTIG (Hardware-Test-Feedback): Ein automatisches Trennen der
+  // laufenden A2DP-Verbindung unmittelbar vor der Inquiry wurde
+  // ausprobiert (BtA2dp::disconnect() gefolgt von
+  // esp_bt_gap_start_discovery()) -- selbst mit Warten auf die
+  // Trennungsbestätigung brachte das den kompletten Classic-BT-Stack
+  // zuverlässig zum Hängen (Board reagierte auf gar nichts mehr, auch
+  // nicht auf "status" über Serial -- nur ein esptool-Hard-Reset half).
+  // Deshalb bewusst NICHT automatisch trennen, sondern den Scan
+  // ablehnen, solange eine Verbindung besteht. Um zu scannen: Board neu
+  // starten (kurzes Zeitfenster vor dem Auto-Reconnect) oder
+  // "clearbtmac"/"setbt:" mit einem Platzhalter-Namen setzen, der
+  // absichtlich nicht verbindet.
+  if (BtA2dp::isConnected()) {
+    Serial.println("[SCAN] Abgelehnt: erst trennen (verbunden mit " + BtA2dp::deviceName() + "), Scan+aktive A2DP-Verbindung hängt die BT-Radio auf.");
+    return;
+  }
+
   deviceCount = 0;
   scanState = I2C_SCAN_STATE_RUNNING;
   running = true;
+  scanStartedAt = millis();
   esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, BT_SCAN_DURATION_UNITS, 0);
   Serial.println("[SCAN] Suche nach BT-Geraeten...");
+}
+
+void loop() {
+  if (running && millis() - scanStartedAt > SCAN_TIMEOUT_MS) {
+    Serial.println("[SCAN] Timeout -- erzwinge Abbruch (kein DISCOVERY_STOPPED-Event erhalten).");
+    esp_bt_gap_cancel_discovery();
+    scanState = I2C_SCAN_STATE_DONE;
+    running = false;
+  }
 }
 
 uint8_t state() { return scanState; }

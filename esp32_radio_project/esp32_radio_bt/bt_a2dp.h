@@ -16,6 +16,20 @@ namespace BtA2dp {
   bool isConnected();
   String deviceName();
 
+  // Temporäre Diagnose für die Fehlersuche "verbunden + ON AIR, aber
+  // kein Ton" -- zeigt periodisch, ob dataCallback() läuft und ob echte
+  // (nicht-stille) Samples über I2S ankommen. In loop() aufrufen.
+  void printAudioDebug();
+
+  // Trennt eine bestehende Verbindung aktiv, schaltet Auto-Reconnect ab
+  // (Library-Verhalten). ACHTUNG: NICHT unmittelbar vor
+  // esp_bt_gap_start_discovery() aufrufen -- im Hardware-Test brachte
+  // diese Reihenfolge (auch mit Warten auf die Trennungsbestätigung) den
+  // kompletten Classic-BT-Stack zum Hängen (siehe bt_scan.cpp). Deshalb
+  // ruft BtScan::start() das bewusst NICHT auf; diese Funktion steht nur
+  // für andere, unabhängige Anwendungsfälle bereit.
+  void disconnect();
+
   // Menschenlesbares Label des aktuell konfigurierten Ziels ("MAC AA:.."
   // oder der Gerätename), für Status-Ausgaben (Serial/Web).
   String targetLabel();

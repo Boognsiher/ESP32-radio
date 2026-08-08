@@ -38,6 +38,12 @@ void poll() {
     } else {
       Serial.println("[FEHLER] Ungueltige MAC-Adresse (Format AA:BB:CC:DD:EE:FF)");
     }
+  } else if (cmd == "stopbt") {
+    // Nur trennen, KEIN anschliessender Scan/Discovery-Aufruf -- genau
+    // diese Kombination brachte den Classic-BT-Stack im Hardware-Test
+    // zum Hängen (siehe bt_scan.cpp). Reines Trennen allein ist sicher.
+    if (BtA2dp::isConnected()) BtA2dp::disconnect();
+    else Serial.println("[BT] War nicht verbunden.");
   } else if (cmd == "clearbtmac") {
     BtA2dp::clearDeviceMac();  // führt intern ESP.restart() aus
   } else if (cmd.startsWith("setbt:")) {

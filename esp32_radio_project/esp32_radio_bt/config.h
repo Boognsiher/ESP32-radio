@@ -21,6 +21,10 @@
 #define PIN_BTN_3         27
 #define BUTTON_DEBOUNCE_MS 400
 
+// Taster 1+2 zusammen gehalten -> IP-Adresse kurz auf dem S3-Display
+// anzeigen (siehe buttons.cpp / I2C_BTN_EVENT_SHOW_IP in i2c_protocol.h).
+#define BUTTON_COMBO_HOLD_MS 1000
+
 #define STATION_COUNT     3
 #define BT_DEFAULT_NAME   "Bose"
 

@@ -12,25 +12,36 @@ constexpr uint16_t COL_GLOW   = 0x03E0;
 constexpr uint16_t COL_BRIGHT = 0x07E0;
 
 // Eingeschriebenes Rechteck im 360px-Kreis (sicherer Textbereich, damit
-// nichts an der runden Kante abgeschnitten wird).
-constexpr int SAFE_L = 60, SAFE_R = 300, SAFE_T = 60;
+// nichts an der runden Kante abgeschnitten wird). SAFE_T/SAFE_B bewusst
+// symmetrisch um die Bildschirmmitte (180) gewählt, damit der Inhaltsblock
+// den Kreis wirklich füllt statt oben zu kleben und unten Luft zu lassen
+// (Feedback aus dem Hardware-Test: Kreis wirkte "zu klein", da die Zeilen
+// vorher nur bis y=256 reichten statt bis in die Nähe des unteren Rands).
+//
+// SAFE_B bewusst mit spürbarem Abstand zum rechnerischen Kreisrand
+// (y=359 bei Radius 179) -- die sichtbare runde Glasfläche ist in der
+// Praxis etwas kleiner als der adressierbare 360x360-Bereich (Blende/
+// Klebering). Erster Versuch mit Y_INFO=296 wurde am unteren Rand
+// abgeschnitten (Hardware-Test-Feedback) -- SAFE_B deshalb auf 270
+// zurückgenommen statt der rechnerisch symmetrischen 300.
+constexpr int SAFE_L = 60, SAFE_R = 300, SAFE_T = 62, SAFE_B = 270;
 constexpr int SAFE_W = SAFE_R - SAFE_L;
 constexpr int CTR_X = TFT_WIDTH / 2, CTR_Y = TFT_HEIGHT / 2;
 
-constexpr int Y_HEADER   = SAFE_T;
-constexpr int Y_STATIONS = SAFE_T + 26;
-constexpr int Y_RULE1    = SAFE_T + 44;
-constexpr int Y_NAME     = SAFE_T + 70;
-constexpr int Y_RULE2    = SAFE_T + 100;
-constexpr int Y_ARTIST   = SAFE_T + 122;
-constexpr int Y_RULE3    = SAFE_T + 160;
-constexpr int Y_TITLE    = SAFE_T + 142;
-constexpr int Y_STATUS   = SAFE_T + 178;
+constexpr int Y_HEADER   = 62;
+constexpr int Y_STATIONS = 92;
+constexpr int Y_RULE1    = 112;
+constexpr int Y_NAME     = 140;
+constexpr int Y_RULE2    = 170;
+constexpr int Y_ARTIST   = 192;
+constexpr int Y_TITLE    = 214;
+constexpr int Y_RULE3    = 232;
+constexpr int Y_STATUS   = 250;
 // Zeigte früher die IP; jetzt eine von radio.cpp befüllte, rotierende
 // Info-Zeile (Raum-/Aussentemperatur, Wetter heute/morgen -- siehe
 // setInfoLine()). IP bleibt über mDNS "esp32radio.local" bzw.
 // Webinterface erreichbar.
-constexpr int Y_INFO     = SAFE_T + 196;
+constexpr int Y_INFO     = 270;
 
 constexpr unsigned long SCROLL_INTERVAL_MS = 350;
 constexpr unsigned long BLINK_INTERVAL_MS  = 800;
@@ -39,14 +50,29 @@ Arduino_DataBus *bus = new Arduino_ESP32QSPI(
   PIN_TFT_CS, PIN_TFT_SCK, PIN_TFT_D0, PIN_TFT_D1, PIN_TFT_D2, PIN_TFT_D3);
 
 // Der ST77916-Konstruktor braucht zwingend die 4 Col/Row-Offset-Parameter
-// (hier 0,0,0,0) UND die explizite st77916_150_init_operations-Init-
-// Sequenz aus der Library selbst -- ohne beides bleibt das Bild nur
-// Streifen/Bildreste (CLAUDE.md Stolperstein #1, bestätigter Aufruf aus
-// reference/esp32_radio_s3_OLD.ino).
+// (hier 0,0,0,0) UND die explizite Init-Sequenz aus der Library selbst --
+// ohne beides bleibt das Bild nur Streifen/Bildreste (CLAUDE.md
+// Stolperstein #1, bestätigter Aufruf aus reference/esp32_radio_s3_OLD.ino).
+//
+// Versionshinweis (zurück zu CLAUDE.md Stolperstein #2 -- beide Boards auf
+// Board-Package 2.0.x): der Umweg über Board-Package 3.x (für GFX-Library
+// >=1.6.2 mit der korrekten st77916_150_init_operations-Tabelle) brachte
+// zwar ein korrektes Bild, aber die dafür nötige neuere Audio-Bibliotheks-
+// version (>=3.x, wegen der neuen i2s_std-API) blockiert bei bestimmten
+// Streaming-Servern minutenlang beim HTTP-Header-Parsing (Audio.cpp
+// parseHttpResponseHeader(), bis zu 3 Retries à 5s) -- das friert den
+// gesamten Loop (I2C/Display/Webserver) mit ein. Deshalb: zurück auf
+// Board-Package 2.0.x + GFX-Library 1.6.0 (kein periman) + ältere Audio-
+// Bibliothek (3.0.13), UND die korrekte st77916_150-Init-Sequenz direkt in
+// die lokal installierte 1.6.0-Bibliothek gepatcht (Byte-Inhalt von
+// st77916_init_operations in Arduino_ST77916.h ersetzt) -- damit bekommen
+// wir das korrekte Display OHNE die neuere, blockierende Audio-Lib nutzen
+// zu müssen. 1.6.0s Konstruktor kennt kein Init-Operations-Argument (das
+// kam erst mit 1.6.2), die Sequenz ist stattdessen fest in
+// Arduino_ST77916::tftInit() einkompiliert.
 Arduino_GFX *gfx = new Arduino_ST77916(
   bus, PIN_TFT_RST, TFT_ROTATION, TFT_IPS, TFT_WIDTH, TFT_HEIGHT,
-  0, 0, 0, 0,
-  st77916_150_init_operations, sizeof(st77916_150_init_operations));
+  0, 0, 0, 0);
 
 // --- Radio-Bildschirm-State ---
 int    stationIdx = 0, stationTotal = STATION_COUNT;
@@ -57,6 +83,25 @@ String trackArtist, trackTitle;
 bool   wifiOk = false;
 String ipText;   // aktuell nicht dargestellt, siehe Y_INFO-Kommentar
 bool   onRadioScreen = false;
+
+// --- BT-Verbunden-Anzeige (per I2C vom DevKit abgefragt, radio.cpp) ---
+// Bewusst auf der Stationen-Zeile (Y_STATIONS) statt der Header-Zeile
+// platziert und deutlich näher an CTR_X: die erste Platzierung (SAFE_L+2
+// auf Höhe des Headers, nahe der oberen Rundung) lag ausserhalb der
+// tatsächlich sichtbaren Kreisfläche und wurde abgeschnitten (Hardware-
+// Test-Feedback) -- die SAFE_L/SAFE_R-Grenzen gelten nur nahe der
+// vertikalen Bildschirmmitte, nicht in den Ecken nahe SAFE_T.
+bool   btConnected = false;
+constexpr int X_BT_INDICATOR = 96;
+constexpr int BT_INDICATOR_W = 34, BT_INDICATOR_H = 16;
+
+void drawBtIndicator() {
+  gfx->fillRect(X_BT_INDICATOR, Y_STATIONS - 2, BT_INDICATOR_W, BT_INDICATOR_H, COL_BG);
+  gfx->setTextSize(1);
+  gfx->setCursor(X_BT_INDICATOR, Y_STATIONS + 2);
+  gfx->setTextColor(btConnected ? COL_BRIGHT : COL_DIM, COL_BG);
+  gfx->print(btConnected ? "BT*" : "bt");
+}
 
 // --- Info-Zeile (Teil der Status-Zeile, Inhalt/Rotation von radio.cpp) ---
 String infoLine;
@@ -109,6 +154,7 @@ void fullRedraw() {
   gfx->drawCircle(CTR_X, CTR_Y, 179, COL_DIM);
 
   drawCentered(">> RADIO", Y_HEADER, 2, COL_MID);
+  drawBtIndicator();
 
   String dots;
   for (int i = 0; i < stationTotal; i++)
@@ -141,6 +187,14 @@ void begin() {
   // Kein Backlight-GPIO nötig: BLK ist fest auf 3.3V verdrahtet.
   gfx->begin();
   gfx->fillScreen(COL_BG);
+  // Adafruit-GFX-Standardverhalten bricht zu lange Texte automatisch in
+  // eine zweite Zeile um -- die landet ungeclippt bei x=0 und wird von
+  // unseren fillRect()-Teilredraws (nur 1 Zeile hoch) nicht mehr erfasst
+  // (Hardware-Test-Feedback: "2. Zeile abgeschnitten"). Stattdessen lieber
+  // eine zu lange Zeile am rechten Rand clippen als eine unkontrollierte
+  // zweite Zeile -- alle Textfelder sind ohnehin einzeilig ausgelegt
+  // (Kürzung per substring() bzw. Scroll-Text bei Titel).
+  gfx->setTextWrap(false);
 }
 
 void showMessage(const String &line1, const String &line2) {
@@ -181,6 +235,26 @@ void setInfoLine(const String &text) {
   if (text == infoLine) return;
   infoLine = text;
   if (onRadioScreen) drawStatusLine();
+}
+
+void setBtConnected(bool connected) {
+  if (connected == btConnected) return;
+  btConnected = connected;
+  if (onRadioScreen) drawBtIndicator();
+}
+
+void showIpOverlay(const String &ip) {
+  onRadioScreen = false;   // tick()/setStatus()/setInfoLine() pausieren, bis returnToRadioScreen()
+  gfx->fillScreen(COL_BG);
+  gfx->drawCircle(CTR_X, CTR_Y, 179, COL_MID);
+  drawCentered("IP-ADRESSE", CTR_Y - 40, 1, COL_MID);
+  drawCentered(ip.length() ? ip : "KEIN WLAN", CTR_Y, 2, COL_BRIGHT);
+  drawCentered(String(MDNS_HOSTNAME) + ".local", CTR_Y + 40, 1, COL_GLOW);
+}
+
+void returnToRadioScreen() {
+  onRadioScreen = true;
+  fullRedraw();
 }
 
 void tick() {

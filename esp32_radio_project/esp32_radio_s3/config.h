@@ -26,6 +26,11 @@
 #define PIN_I2C_SCL   6    // D5
 #define I2C_POLL_INTERVAL_MS   80
 
+// Taster-Kombi 1+2 am DevKit (>=1s gehalten, siehe dortiges config.h
+// BUTTON_COMBO_HOLD_MS): wie lange die IP-Adresse auf dem Display bleibt,
+// bevor automatisch zurück zum Radio-Screen geschaltet wird.
+#define IP_OVERLAY_DURATION_MS   15000UL
+
 // --- WLAN ---
 #define WIFI_STATIC_IP    "192.168.0.180"
 #define WIFI_GATEWAY      "192.168.0.254"

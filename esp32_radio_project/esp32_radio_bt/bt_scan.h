@@ -7,6 +7,8 @@
 namespace BtScan {
   void begin();     // registriert den GAP-Callback
   void start();      // löst einen Inquiry-Scan aus (nicht blockierend)
+  void loop();        // in loop() aufrufen: erzwingt Timeout, falls die
+                       // Inquiry nie ein DISCOVERY_STOPPED-Event liefert
 
   uint8_t state();   // I2C_SCAN_STATE_*
   uint8_t count();

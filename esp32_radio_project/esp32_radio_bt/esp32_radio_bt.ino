@@ -21,6 +21,9 @@
  *   setbtmac:AA:BB:CC:DD:EE:FF neues BT-Ziel per fester MAC setzen (Neustart)
  *   clearbtmac                  feste MAC entfernen, zurück auf Namenssuche
  *   scan                         ca. 12s nach sichtbaren BT-Classic-Geräten suchen
+ *                                 (nur möglich, wenn gerade NICHT verbunden)
+ *   stopbt                       aktuelle BT-Verbindung trennen, kein Auto-
+ *                                 Reconnect (setbt/setbtmac erneut zum Fortsetzen)
  *   status                        aktueller Status ausgeben
  *
  * Benötigte Libraries (Board-Package **2.0.x** -- siehe CLAUDE.md
@@ -42,7 +45,7 @@
 void setup() {
   Serial.begin(115200);
   Serial.println("\n[ESP32 BT-Bridge] Start");
-  Serial.println("BT-Ziel: setbt:NAME | setbtmac:AA:BB:CC:DD:EE:FF | clearbtmac | scan | status");
+  Serial.println("BT-Ziel: setbt:NAME | setbtmac:AA:BB:CC:DD:EE:FF | clearbtmac | scan | stopbt | status");
 
   Buttons::begin();
   I2sAudio::begin();
@@ -57,5 +60,13 @@ void loop() {
   RoomSensor::loop();
   I2cSlave::handlePendingBtTarget();
   SerialConsole::poll();
+  BtScan::loop();
+
+  static unsigned long lastAudioDbg = 0;
+  if (millis() - lastAudioDbg > 3000) {
+    lastAudioDbg = millis();
+    BtA2dp::printAudioDebug();
+  }
+
   delay(10);
 }

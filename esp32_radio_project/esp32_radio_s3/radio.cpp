@@ -4,6 +4,7 @@
 #include "display.h"
 #include "audio_stream.h"
 #include "i2c_master.h"
+#include "i2c_protocol.h"   // I2C_BTN_EVENT_SHOW_IP
 #include "weather.h"
 #include <WiFi.h>
 #include <math.h>
@@ -15,6 +16,10 @@ namespace {
   String artist, title;
   bool   wifiOk  = false;
   unsigned long lastI2cPoll = 0;
+
+  // --- IP-Anzeige-Overlay (Taster-Kombi 1+2 am DevKit) ---
+  bool showingIp = false;
+  unsigned long ipOverlayUntil = 0;
 
   // --- Raumtemperatur (per I2C vom DevKit, DS18B20 optional) ---
   // Getrennt benannt von den öffentlichen Radio::roomTempValid()/
@@ -109,16 +114,61 @@ void startStation(int idx) {
   Stations::saveCurrentIndex(station);
 }
 
+void stop() {
+  AudioStream::stop();
+  playing = false;
+  status = "Stumm (manuell)";
+  Display::setStatus(status, playing);
+}
+
 void loop() {
+  // Temporäre Diagnose (Fehlersuche Audio-Stottern/Lag): feingranulare
+  // Zeitmessung pro Teilschritt, um den genauen blockierenden Aufruf zu
+  // finden statt weiter zu raten -- siehe [LOOPDBG] in esp32_radio_s3.ino
+  // für die grobe Top-Level-Messung.
+  unsigned long ta = millis();
   AudioStream::loop();
+  unsigned long tb = millis();
   Display::tick();
+  unsigned long tc = millis();
   Weather::loop();
+  unsigned long td = millis();
 
   unsigned long now = millis();
   if (now - lastI2cPoll > I2C_POLL_INTERVAL_MS) {
     lastI2cPoll = now;
     uint8_t newStation;
-    if (I2cMaster::pollButtons(newStation)) startStation(newStation);
+    bool stationChanged, btConnected;
+    if (I2cMaster::pollButtons(newStation, stationChanged, btConnected)) {
+      Display::setBtConnected(btConnected);
+    }
+    if (stationChanged) {
+      if (newStation == I2C_BTN_EVENT_SHOW_IP) {
+        showingIp = true;
+        ipOverlayUntil = now + IP_OVERLAY_DURATION_MS;
+        Display::showIpOverlay(wifiOk ? WiFi.localIP().toString() : "");
+      } else {
+        showingIp = false;
+        startStation(newStation);
+      }
+    }
+  }
+  unsigned long te = millis();
+
+  if (showingIp && now >= ipOverlayUntil) {
+    showingIp = false;
+    Display::returnToRadioScreen();
+  }
+
+  // Temporäre Diagnose (Fehlersuche Audio-Stottern): schwaches WLAN-Signal
+  // könnte die für den Stream nötige Dauerbandbreite nicht zuverlässig
+  // liefern -- dann würde die Audio-Lib periodisch "slow stream"/"Stream
+  // lost" melden (siehe Audio.cpp streamDetection()), unabhängig von der
+  // eigentlichen Dekodierung/I2S-Kette, die bereits als korrekt bestätigt ist.
+  static unsigned long lastRssiPrint = 0;
+  if (now - lastRssiPrint > 5000) {
+    lastRssiPrint = now;
+    Serial.printf("[WIFIDBG] RSSI=%d dBm\n", WiFi.RSSI());
   }
 
   if (now - lastRoomPoll > ROOM_TEMP_I2C_POLL_MS) {
@@ -130,6 +180,12 @@ void loop() {
     }
     // false (keine/unplausible Antwort) -> alten Stand beibehalten,
     // CLAUDE.md Stolperstein #6.
+  }
+  unsigned long tf = millis();
+
+  if (tb - ta > 150 || tc - tb > 150 || td - tc > 150 || te - td > 150 || tf - te > 150) {
+    Serial.printf("[LOOPDBG] audio=%lums tick=%lums weather=%lums i2c=%lums roomtemp=%lums\n",
+      tb - ta, tc - tb, td - tc, te - td, tf - te);
   }
 
   if (now - lastInfoRotate > INFO_LINE_ROTATE_MS) {

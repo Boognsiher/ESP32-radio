@@ -68,6 +68,18 @@ void setup() {
 }
 
 void loop() {
+  // Temporäre Diagnose (Fehlersuche Audio-Stottern/Lag): loggt, wenn ein
+  // einzelner loop()-Durchlauf ungewöhnlich lange braucht, plus welcher
+  // der beiden Top-Level-Aufrufe dafür verantwortlich war -- pinpointed
+  // die genaue Quelle blockierender Aufrufe statt weiter zu raten.
+  unsigned long t0 = millis();
   RadioWeb::loop();
+  unsigned long t1 = millis();
   Radio::loop();
+  unsigned long t2 = millis();
+
+  unsigned long webMs = t1 - t0, radioMs = t2 - t1;
+  if (webMs > 150 || radioMs > 150) {
+    Serial.printf("[LOOPDBG] RadioWeb::loop()=%lums Radio::loop()=%lums\n", webMs, radioMs);
+  }
 }

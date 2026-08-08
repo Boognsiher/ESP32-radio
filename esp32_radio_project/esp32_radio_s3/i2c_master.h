@@ -7,10 +7,16 @@
 namespace I2cMaster {
   void begin();
 
-  // Fragt den Taster-Status ab. Gibt true zurück, wenn seit der letzten
-  // Abfrage ein neuer Tastendruck registriert wurde (newStation enthält
-  // dann den gewünschten Sender-Index).
-  bool pollButtons(uint8_t &newStation);
+  // Fragt den Taster-Status ab (liefert bei jeder gültigen Antwort auch
+  // btConnected mit -- siehe I2C_CMD_GET_BUTTONS in i2c_protocol.h für
+  // die Begründung, warum der BT-Status huckepack hier mitkommt statt
+  // über ein eigenes Kommando). Rückgabewert: true = gültige Antwort
+  // gelesen (Checksumme ok, Werte plausibel) -- btConnectedOut ist dann
+  // aktuell. stationChanged zusätzlich true, wenn sich seit der letzten
+  // Abfrage ein neuer Tastendruck ergeben hat (newStation enthält dann
+  // den gewünschten Sender-Index, oder den Sonderwert
+  // I2C_BTN_EVENT_SHOW_IP bei der Taster-Kombi 1+2 -- siehe radio.cpp).
+  bool pollButtons(uint8_t &newStation, bool &stationChanged, bool &btConnectedOut);
 
   void triggerScan();
 

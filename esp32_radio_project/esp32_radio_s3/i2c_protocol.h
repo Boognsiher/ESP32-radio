@@ -27,7 +27,24 @@
 #define I2C_SLAVE_ADDR            0x42
 #define I2C_CLOCK_HZ               50000   // siehe CLAUDE.md Stolperstein #6
 
-#define I2C_CMD_GET_BUTTONS        0x00   // Antwort: [event, stationIdx, chk]  (3 Byte)
+#define I2C_CMD_GET_BUTTONS        0x00   // Antwort: [event, stationIdx, btConnected, chk] (4 Byte).
+                                           // stationIdx ist normalerweise 0..STATION_COUNT-1;
+                                           // der Sonderwert I2C_BTN_EVENT_SHOW_IP signalisiert
+                                           // statt Senderwechsel die Taster-Kombi 1+2 (>=1s
+                                           // gehalten) fürs kurzzeitige IP-Anzeigen -- siehe
+                                           // buttons.cpp (DevKit) / radio.cpp (S3). btConnected
+                                           // ist auf dieser Standard-Antwort mit draufgepackt
+                                           // (statt eines eigenen GET_BT_STATUS-Kommandos):
+                                           // Hardware-Test zeigte, dass das "Kommando schreiben,
+                                           // dann separat requestFrom()"-Muster bei diesem Slave
+                                           // zuverlässig fehlschlägt (immer 0x00-Bytes statt der
+                                           // echten Antwort, unabhängig von Timing/Pull-ups/
+                                           // repeated-start -- Ursache nicht abschliessend
+                                           // geklärt). GET_BUTTONS ist das einzige nachweislich
+                                           // zuverlässige Muster (nie ein vorheriges sendCommand
+                                           // nötig, Slave antwortet immer mit dem Default-Zustand),
+                                           // deshalb btConnected hier huckepack statt über ein
+                                           // eigenes Kommando.
 #define I2C_CMD_START_SCAN         0x01   // kein Antwort-Request
 #define I2C_CMD_GET_SCAN_STATUS    0x02   // Antwort: [state, count, chk]       (3 Byte)
 #define I2C_CMD_GET_ROOM_TEMP      0x03   // Antwort: [tempLo, tempHi, valid, chk] (4 Byte).
@@ -40,6 +57,8 @@
                                            // Payload leer (0 Byte) statt 6 Byte -> Slave
                                            // interpretiert das als "feste MAC entfernen,
                                            // zurück auf Namens-Verbindung".
+
+#define I2C_BTN_EVENT_SHOW_IP      0xFF   // Sonderwert für stationIdx, siehe I2C_CMD_GET_BUTTONS oben
 
 #define I2C_SCAN_MAX_DEVICES       8
 #define I2C_SCAN_NAME_LEN          20

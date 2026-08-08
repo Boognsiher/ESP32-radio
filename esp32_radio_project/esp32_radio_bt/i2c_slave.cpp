@@ -95,9 +95,14 @@ namespace {
       buf[I2C_SCAN_RECORD_LEN - 1] = i2cChecksum(buf, I2C_SCAN_RECORD_LEN - 1);
       Wire.write(buf, I2C_SCAN_RECORD_LEN);
     } else {
-      uint8_t buf[3] = { Buttons::eventCounter(), Buttons::currentStation(), 0 };
-      buf[2] = i2cChecksum(buf, 2);
-      Wire.write(buf, 3);
+      // btConnected huckepack auf der Default-Antwort statt eines eigenen
+      // GET_BT_STATUS-Kommandos -- siehe Kommentar bei I2C_CMD_GET_BUTTONS
+      // in i2c_protocol.h (das separate Kommando-dann-Antwort-Muster war
+      // im Hardware-Test nicht zuverlässig zu bekommen).
+      uint8_t buf[4] = { Buttons::eventCounter(), Buttons::currentStation(),
+                          (uint8_t)(BtA2dp::isConnected() ? 1 : 0), 0 };
+      buf[3] = i2cChecksum(buf, 3);
+      Wire.write(buf, 4);
     }
     lastCommand = I2C_CMD_GET_BUTTONS;  // zurücksetzen für die nächste einfache Abfrage
   }
