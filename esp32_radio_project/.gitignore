@@ -1,0 +1,6 @@
+build_bt/
+build_s3/
+build_tonetest/
+esp32_radio_s3/build/
+esp32_radio_bt/build/
+bt_tone_test/build/
