@@ -52,6 +52,7 @@ bool connectStored(StatusCallback onStatus) {
   sn.fromString(WIFI_SUBNET);
   dns1.fromString(WIFI_DNS);
   WiFi.mode(WIFI_STA);
+  WiFi.setTxPower(WIFI_TX_POWER_LEVEL);
   WiFi.config(ip, gw, sn, dns1);
   WiFi.begin(ssid.c_str(), pass.c_str());
 

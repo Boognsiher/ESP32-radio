@@ -1,6 +1,7 @@
 #include "i2s_audio.h"
 #include "config.h"
 #include <driver/i2s.h>
+#include <freertos/FreeRTOS.h>
 
 namespace I2sAudio {
 
@@ -41,8 +42,20 @@ void begin() {
 }
 
 size_t readFrames(int16_t *outLR, size_t frameCount) {
+  // WICHTIG: NIE portMAX_DELAY hier. Dieser Aufruf laeuft im Kontext des
+  // A2DP-dataCallback(), der wiederum auf dem Bluetooth-Controller-Task
+  // (BTC) des Stacks ausgefuehrt wird. Steht der S3 (I2S-Master) auch nur
+  // kurz still (Netzwerk-Hickup, Buffer-Underrun beim Streamen), lieferte
+  // er kein BCLK/WS mehr -- i2s_read() blockierte dann mit portMAX_DELAY
+  // unbegrenzt und blockierte damit den kompletten BTC-Task. Der Speaker
+  // sieht daraufhin keine Supervision-Antworten mehr und trennt die
+  // Verbindung ("verbunden -> Started -> nach 1-2 Callbacks Getrennt",
+  // exakt das beobachtete Hardware-Verhalten). Fix: kurzes, begrenztes
+  // Timeout -- bei fehlenden Daten liefert i2s_read() dann bytesRead=0,
+  // dataCallback() erkennt got==0 bereits und fuellt Stille (siehe
+  // bt_a2dp.cpp), statt den Stack einzufrieren.
   size_t bytesRead = 0;
-  i2s_read(I2S_NUM_0, outLR, frameCount * 2 * sizeof(int16_t), &bytesRead, portMAX_DELAY);
+  i2s_read(I2S_NUM_0, outLR, frameCount * 2 * sizeof(int16_t), &bytesRead, pdMS_TO_TICKS(5));
   return bytesRead / (2 * sizeof(int16_t));
 }
 

@@ -3,6 +3,7 @@
 #include "i2s_audio.h"
 #include <BluetoothA2DPSource.h>
 #include <Preferences.h>
+#include <esp_bt.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -95,6 +96,18 @@ void begin() {
     Serial.printf("[BT] Verbinde per Name: %s\n", name.c_str());
     a2dp.start(name.c_str());
   }
+
+  // BT-Sendeleistung -- muss NACH a2dp.start() erfolgen (start() initialisiert
+  // den BT-Controller synchron; vorher hat esp_bredr_tx_power_set() nichts zu
+  // setzen). Hardware-Test-Feedback: periodische Verbindungsabbrueche
+  // (~alle 15-20s) traten unabhaengig von WLAN-Sendeleistung UND Abstand
+  // Lautsprecher/Board auf -- einzig die BT-Sende-UNTERGRENZE entschied
+  // zuverlaessig (N9/N0 durchgehend stabil ueber 60s+, N3/N0 und Standard
+  // N0/P3 brachen beide weiterhin ab). Bei erstem N9/N0-Test (Lautsprecher
+  // nah am Board) klang der Ton "abgehackt" -- vermutlich ein Nahfeld-
+  // Artefakt bei geringer Sendeleistung + geringem Abstand, nicht
+  // zwingend an die niedrige Leistung selbst gebunden.
+  esp_bredr_tx_power_set(ESP_PWR_LVL_N9, ESP_PWR_LVL_N0);
 }
 
 bool isConnected() { return connected; }

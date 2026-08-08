@@ -42,6 +42,14 @@
 #define CAPTIVE_PORTAL_TIMEOUT_MS  180000
 #define MDNS_HOSTNAME     "esp32radio"
 
+// Hardware-Test-Feedback: reduzierte WLAN-Sendeleistung (selbst nahe
+// Minimum) hatte KEINEN Einfluss auf die periodischen BT-Verbindungsabbrueche
+// -- die Ursache war die Naehe des BT-Lautsprechers zum ESP32-Board (Distanz
+// behebt es, siehe bt_a2dp.cpp), nicht WLAN/BT-Selbststoerung der beiden
+// Boards untereinander. Daher hier bewusst Standard-Sendeleistung, keine
+// kuenstliche Reduktion.
+#define WIFI_TX_POWER_LEVEL   WIFI_POWER_19_5dBm
+
 #define STATION_COUNT 3
 
 // --- Wetter (Open-Meteo, kostenlos, kein API-Key) ---
