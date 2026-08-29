@@ -8,12 +8,23 @@ Library `arduino-audio-tools` (inkl. Resampling) statt auf Eigenbau-Code
 
 ## Status
 
-Projekt wird aktuell mit Claude Code neu aufgebaut, **zweiter Anlauf**
-nach einer ersten Version, die an Audio-Rucklern und I2C-Instabilität
+Zweiter Anlauf ist implementiert (`esp32_radio_s3/`, `esp32_radio_bt/`),
+nachdem die erste Version an Audio-Rucklern und I2C-Instabilität
 gescheitert ist (siehe "Stolpersteine" in `CLAUDE.md`). Die Spezifikation
 (Hardware, Architektur, bekannte Stolpersteine) steht in [`CLAUDE.md`](./CLAUDE.md)
 und [`hardware/pinout.md`](./hardware/pinout.md) – das ist die
-verbindliche Vorgabe, der Code selbst wird von Grund auf neu geschrieben.
+verbindliche Vorgabe.
+
+**Wichtig – noch nicht kompiliert/getestet:** Der Code wurde anhand
+verifizierter Beispiele aus der offiziellen `arduino-audio-tools`-
+Dokumentation und dem GitHub-Repo geschrieben, konnte in dieser Umgebung
+aber **nicht selbst kompiliert werden** (Netzwerk-Policy blockiert den
+Download von Arduino-/PlatformIO-Toolchains). Bitte beim ersten Compile
+in der Arduino IDE auftretende Fehler (v.a. exakte API-Feldnamen wie
+`ResampleConfig::to_sample_rate`, `EncodedAudioStream::addNotifyAudioChange`,
+`URLStream`-Konstruktor/`setMetadataCallback`) gegen die tatsächlich
+installierte Library-Version prüfen – das sind die wahrscheinlichsten
+Stellen für kleinere Anpassungen.
 
 **Vorhandene Boards:** Xiao ESP32-S3 + ESP32 DevKitV1 (kein PSRAM). Ein
 "ESP32-S3 Mini" ist ebenfalls vorhanden, aber für die BT-Rolle **nicht**
@@ -37,7 +48,14 @@ reference/         ← Alte Sketches nur zur Orientierung (nicht 1:1 übernehmen
 - ESP32 DevKitV1: Board `ESP32 Dev Module`, ESP32-Board-Package **2.0.x**
   – kein PSRAM, daher kleinere Audio-Puffer als im Referenzprojekt
   (siehe Stolperstein #11 in `CLAUDE.md`)
-- Beide Boards: Library `arduino-audio-tools` (pschatzmann) +
-  `ESP32-A2DP` (pschatzmann) als Abhängigkeit
+
+### Benötigte Libraries (Library Manager, beide Boards)
+
+| Library | Autor | Zweck |
+|---|---|---|
+| GFX Library for Arduino | moononournation | Display (nur `esp32_radio_s3`) |
+| arduino-audio-tools | pschatzmann | Audio-Pipeline (I2S/URL/Resample/A2DP) |
+| arduino-libhelix | pschatzmann | MP3-Decoder, Abhängigkeit von arduino-audio-tools |
+| ESP32-A2DP | pschatzmann | Bluetooth-A2DP-Backend, Abhängigkeit von arduino-audio-tools |
 
 Details siehe `CLAUDE.md`.
