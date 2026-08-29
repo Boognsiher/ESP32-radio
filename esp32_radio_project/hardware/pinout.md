@@ -15,26 +15,34 @@
 | VCC | – | – | 3.3V |
 | GND | – | – | GND |
 
-## I2S (Audio): Xiao S3 → DevKitV1
+## I2S (Audio): Xiao S3 → ESP32-WROVER-Board
 
-| Funktion | S3 Header-Pin | S3 GPIO | DevKitV1 GPIO |
+| Funktion | S3 Header-Pin | S3 GPIO | WROVER GPIO |
 |---|---|---|---|
 | BCLK | D3 | 4  | 26 |
 | LRCK | D6 | 43 | 25 |
 | DOUT | D7 | 44 | 22 |
 | GND  | –  | GND | GND |
 
-## I2C (Taster + BT-Scan-Steuerung): Xiao S3 ↔ DevKitV1
+Übertragen wird via `I2SStream` aus `arduino-audio-tools`, mit
+`ResampleStream` auf beiden Seiten auf 44.1kHz normalisiert (siehe
+Stolperstein #10 in `CLAUDE.md`) – kein rohes I2S ohne Resampling mehr.
 
-| Funktion | S3 Header-Pin | S3 GPIO | DevKitV1 GPIO |
+## I2C (Taster + BT-Scan-Steuerung): Xiao S3 ↔ ESP32-WROVER-Board
+
+| Funktion | S3 Header-Pin | S3 GPIO | WROVER GPIO |
 |---|---|---|---|
 | SDA | D4 | 5 | 32 |
 | SCL | D5 | 6 | 33 |
 
 Slave-Adresse `0x42`, empfohlener Takt 50kHz. Externe 4.7kΩ-Pull-ups auf
 SDA/SCL nach 3.3V empfohlen (siehe Stolperstein #6 in `CLAUDE.md`).
+**Vor erneutem Timing-/Pull-up-Debugging: alle Lötstellen/Steckverbinder
+der I2C-Leitung physisch auf Wackelkontakt prüfen** (siehe Stolperstein
+#13 – in einem vergleichbaren Projekt war ein vermeintlicher
+Software-Bug tatsächlich eine kalte Lötstelle).
 
-## Taster → DevKitV1 (gegen GND)
+## Taster → ESP32-WROVER-Board (gegen GND)
 
 | Funktion | GPIO | Pull-up |
 |---|---|---|
@@ -52,7 +60,7 @@ Kein Pin mehr frei.
 | Von | Nach | Hinweis |
 |---|---|---|
 | Externe 5V/2A-Quelle | Xiao S3 5V-Pin | Hauptversorgung |
-| S3 5V-Pin | DevKitV1 5V/VIN-Pin | Drahtbrücke |
+| S3 5V-Pin | WROVER-Board 5V/VIN-Pin | Drahtbrücke |
 | GND | gemeinsam | zwischen beiden Boards verbunden |
 
 Nicht gleichzeitig USB und 5V-Brücke am selben Board anschliessen.
