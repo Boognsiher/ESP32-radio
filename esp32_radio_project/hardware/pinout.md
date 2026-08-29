@@ -1,5 +1,12 @@
 # Pinout-Referenz
 
+Zweites Board aktuell: **ESP32 DevKitV1** (vorhandene Hardware, kein
+PSRAM). Falls trotz Resampling (Stolperstein #10 in `CLAUDE.md`)
+weiterhin Ruckler auftreten, ist ein Wechsel auf ein PSRAM-Board
+(ESP32-WROVER) der nächste Schritt – Pinbelegung unten bliebe dabei
+identisch. Das vorhandene "ESP32-S3 Mini" ist **keine** Alternative
+dafür (kein klassisches Bluetooth A2DP, nur BLE).
+
 ## Display (ST77916, rund, QSPI, 360×360, "TM093") → Xiao ESP32-S3
 
 | Display-Beschriftung | Bedeutung | S3 Header-Pin | GPIO |
@@ -15,9 +22,9 @@
 | VCC | – | – | 3.3V |
 | GND | – | – | GND |
 
-## I2S (Audio): Xiao S3 → ESP32-WROVER-Board
+## I2S (Audio): Xiao S3 → ESP32 DevKitV1
 
-| Funktion | S3 Header-Pin | S3 GPIO | WROVER GPIO |
+| Funktion | S3 Header-Pin | S3 GPIO | DevKitV1 GPIO |
 |---|---|---|---|
 | BCLK | D3 | 4  | 26 |
 | LRCK | D6 | 43 | 25 |
@@ -28,9 +35,9 @@
 `ResampleStream` auf beiden Seiten auf 44.1kHz normalisiert (siehe
 Stolperstein #10 in `CLAUDE.md`) – kein rohes I2S ohne Resampling mehr.
 
-## I2C (Taster + BT-Scan-Steuerung): Xiao S3 ↔ ESP32-WROVER-Board
+## I2C (Taster + BT-Scan-Steuerung): Xiao S3 ↔ ESP32 DevKitV1
 
-| Funktion | S3 Header-Pin | S3 GPIO | WROVER GPIO |
+| Funktion | S3 Header-Pin | S3 GPIO | DevKitV1 GPIO |
 |---|---|---|---|
 | SDA | D4 | 5 | 32 |
 | SCL | D5 | 6 | 33 |
@@ -42,7 +49,7 @@ der I2C-Leitung physisch auf Wackelkontakt prüfen** (siehe Stolperstein
 #13 – in einem vergleichbaren Projekt war ein vermeintlicher
 Software-Bug tatsächlich eine kalte Lötstelle).
 
-## Taster → ESP32-WROVER-Board (gegen GND)
+## Taster → ESP32 DevKitV1 (gegen GND)
 
 | Funktion | GPIO | Pull-up |
 |---|---|---|
@@ -60,7 +67,7 @@ Kein Pin mehr frei.
 | Von | Nach | Hinweis |
 |---|---|---|
 | Externe 5V/2A-Quelle | Xiao S3 5V-Pin | Hauptversorgung |
-| S3 5V-Pin | WROVER-Board 5V/VIN-Pin | Drahtbrücke |
+| S3 5V-Pin | DevKitV1 5V/VIN-Pin | Drahtbrücke |
 | GND | gemeinsam | zwischen beiden Boards verbunden |
 
 Nicht gleichzeitig USB und 5V-Brücke am selben Board anschliessen.

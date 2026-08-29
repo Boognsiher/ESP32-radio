@@ -43,7 +43,7 @@ Bluetooth (A2DP) unterstützt – neuere Varianten (S3, C3, etc.) können
 nur BLE.
 
 ```
-Internet → WLAN → [Xiao ESP32-S3] --I2S--> [ESP32-WROVER-Board] --BT A2DP--> Lautsprecher
+Internet → WLAN → [Xiao ESP32-S3] --I2S--> [ESP32 DevKitV1] --BT A2DP--> Lautsprecher
                    Display, Webinterface         Bluetooth-Bridge
                         ⇅ I2C (Taster + BT-Scan-Steuerung)
 ```
@@ -51,15 +51,19 @@ Internet → WLAN → [Xiao ESP32-S3] --I2S--> [ESP32-WROVER-Board] --BT A2DP-->
 - **Xiao ESP32-S3** (8MB PSRAM onboard): WLAN, rundes Display,
   Webinterface, I2S-Sender, I2C-Master (fragt Taster/Scan-Ergebnisse
   vom zweiten Board ab)
-- **ESP32-WROVER-Board** (PSRAM zwingend, siehe Stolperstein #11):
-  I2S-Empfänger, Bluetooth-A2DP-Quelle, 3 Taster, I2C-Slave
+- **ESP32 DevKitV1** (WROOM-32, **kein** PSRAM): I2S-Empfänger,
+  Bluetooth-A2DP-Quelle, 3 Taster, I2C-Slave
 
-**Wichtig – Boardwahl zweites Board:** Ein Standard-"ESP32 DevKitV1"
-(WROOM-32-Modul) hat **kein PSRAM** und reicht für die nötigen
-Audio-Puffer nicht zuverlässig aus (siehe Stolperstein #11). Es muss
-ein Board mit ESP32-WROVER-Modul (oder gleichwertig, PSRAM onboard)
-verwendet werden – Pinbelegung ist ansonsten identisch zu einem
-DevKitV1-artigen Board.
+**Wichtig – Boardwahl zweites Board:** Das vorhandene DevKitV1 (kein
+PSRAM) wird **zuerst** eingesetzt, mit ans interne RAM angepassten
+(kleineren) Audio-Puffern statt der 512KB aus dem Referenzprojekt –
+siehe Stolperstein #11. Der eigentliche Fix gegen die Ruckler ist das
+Resampling (Stolperstein #10), nicht primär die Puffergrösse. **Nur
+falls trotz Resampling weiterhin Ruckler/Aussetzer auftreten**, ist der
+nächste Schritt ein Board-Tausch auf ein ESP32-WROVER-Modul (PSRAM) –
+das vorhandene "ESP32-S3 Mini" ist dafür **nicht** geeignet, da S3 kein
+klassisches Bluetooth A2DP kann (nur BLE), unabhängig vom PSRAM.
+Pinbelegung eines WROVER-Ersatzboards wäre identisch zum DevKitV1.
 
 Die 3 Taster hängen physisch am zweiten Board (nicht am S3), weil der
 Xiao S3 nur 11 Header-Pins hat und Display+I2S bereits 9 davon belegen
@@ -88,9 +92,9 @@ Stolperstein #10. Kein rohes I2S ohne Resampling-Stufe.
 | RST    | –   | fest 3.3V (kein GPIO) |
 | BLK    | –   | fest 3.3V (kein GPIO) |
 
-### I2S: Xiao S3 → ESP32-WROVER-Board
+### I2S: Xiao S3 → ESP32 DevKitV1
 
-| Funktion | S3 GPIO | WROVER GPIO |
+| Funktion | S3 GPIO | DevKitV1 GPIO |
 |----------|---------|---------------|
 | BCLK     | 4 (D3)  | 26 |
 | LRCK     | 43 (D6) | 25 |
@@ -99,9 +103,9 @@ Stolperstein #10. Kein rohes I2S ohne Resampling-Stufe.
 Übertragung über `I2SStream` (arduino-audio-tools) mit `ResampleStream`
 auf 44.1kHz auf beiden Seiten – siehe Stolperstein #10.
 
-### I2C: Xiao S3 ↔ ESP32-WROVER-Board
+### I2C: Xiao S3 ↔ ESP32 DevKitV1
 
-| Funktion | S3 GPIO | WROVER GPIO |
+| Funktion | S3 GPIO | DevKitV1 GPIO |
 |----------|---------|---------------|
 | SDA      | 5 (D4)  | 32 |
 | SCL      | 6 (D5)  | 33 |
@@ -112,7 +116,7 @@ längeren Kabelstrecken – siehe Stolpersteine). **Vor weiterem
 Timing-Debugging zuerst alle Lötstellen/Steckverbinder physisch auf
 Wackelkontakt prüfen** (siehe Stolperstein #13).
 
-### Taster → ESP32-WROVER-Board
+### Taster → ESP32 DevKitV1
 
 | Funktion | GPIO | Pull-up |
 |----------|------|---------|
@@ -122,7 +126,7 @@ Wackelkontakt prüfen** (siehe Stolperstein #13).
 
 ### Stromversorgung
 
-Externe 5V/2A-Quelle → S3 5V-Pin → Drahtbrücke → WROVER-Board
+Externe 5V/2A-Quelle → S3 5V-Pin → Drahtbrücke → DevKitV1
 5V/VIN-Pin. GND gemeinsam. Nicht gleichzeitig USB und 5V-Brücke am
 selben Board anschliessen (Rückspeisungskonflikt).
 
@@ -194,20 +198,27 @@ Diese Punkte haben in der Vorgängerversion konkrete Probleme verursacht
     ```
     Xiao S3:   URLStream → EncodedAudioStream(MP3DecoderHelix)
                → ResampleStream(→44.1kHz) → I2SStream (Master, TX)
-    WROVER:    I2SStream (Slave, RX) → ResampleStream(48→44.1kHz)
+    DevKitV1:  I2SStream (Slave, RX) → ResampleStream(48→44.1kHz)
                → A2DPStream → Bluetooth-Lautsprecher
     ```
     Kein Eigenbau-I2S-Code mehr für die Audio-Übertragung selbst
     (I2C-Steuerkanal für Taster/BT-Scan bleibt Eigenbau, siehe unten).
 
-11. **PSRAM ist Pflicht auf beiden Boards**: Referenzprojekt (#10)
-    brauchte Puffer von `buffer_size=1024*8, buffer_count=64`
-    (~512KB) für rucklerfreie Wiedergabe – das übersteigt den internen
-    SRAM eines ESP32 bei weiten (~300KB frei neben WLAN/BT-Stack).
-    Xiao ESP32-S3 hat 8MB PSRAM onboard (aktivieren!). Für das zweite
-    Board **kein** Standard-DevKitV1/WROOM-32 verwenden (kein PSRAM) –
-    ein WROVER-Board (oder gleichwertig mit PSRAM) einsetzen, siehe
-    Architektur-Abschnitt oben.
+11. **PSRAM/Puffergrösse – zuerst mit vorhandener Hardware versuchen**:
+    Referenzprojekt (#10) nutzte am Ende Puffer von
+    `buffer_size=1024*8, buffer_count=64` (~512KB) – das übersteigt den
+    internen SRAM eines ESP32 (nur ~300KB frei neben WLAN/BT-Stack) und
+    braucht PSRAM. Xiao ESP32-S3 hat 8MB PSRAM onboard (aktivieren!).
+    Das vorhandene DevKitV1 (WROOM-32) hat **kein** PSRAM – deshalb dort
+    zunächst mit deutlich kleineren, ans interne RAM angepassten
+    Puffern arbeiten (Grössenordnung testen/tunen, nicht blind 512KB
+    übernehmen) und primär auf das Resampling (#10) als Fix setzen, da
+    das im Referenzprojekt der eigentliche Durchbruch war. **Nur falls
+    trotz Resampling weiterhin Ruckler/Aussetzer auftreten**, ist ein
+    Wechsel auf ein PSRAM-Board (ESP32-WROVER) der nächste Schritt –
+    siehe Architektur-Abschnitt oben. Das vorhandene "ESP32-S3 Mini"
+    ist dafür **keine** Option: S3 kann kein klassisches Bluetooth A2DP,
+    PSRAM hin oder her.
 
 12. **Kein Serial-Debug-Output während aktivem Audio-Stream**: Im
     Referenzprojekt (#10) hat Serial-Debugging den Stream hörbar
@@ -230,9 +241,10 @@ Diese Punkte haben in der Vorgängerversion konkrete Probleme verursacht
     Taster ein Kernfeature ist (nicht Ausnahmefall), braucht es ein
     explizites, koordiniertes Vorgehen beim Wechsel: I2S-Stream auf
     dem S3 sauber stoppen → kurze definierte Stille senden (kein
-    unkontrollierter Cut) → neuen Stream starten; WROVER-Seite muss
-    diesen Übergang erkennen und den Empfangspfad neu synchronisieren,
-    ohne dass ein manueller Reboot nötig wird.
+    unkontrollierter Cut) → neuen Stream starten; das Empfänger-Board
+    (DevKitV1, ggf. später WROVER) muss diesen Übergang erkennen und
+    den Empfangspfad neu synchronisieren, ohne dass ein manueller
+    Reboot nötig wird.
 
 15. **Metadaten defensiv parsen**: Im Referenzprojekt (#10) haben
     Sonderzeichen (Kyrillisch) in Stream-Metadaten die Anzeige zum
@@ -251,7 +263,7 @@ Diese Punkte haben in der Vorgängerversion konkrete Probleme verursacht
   falschen Zugangsdaten
 - Statische IP `192.168.0.180`, Gateway `192.168.0.254` (anpassbar)
 - Streamt Audio von einer von 3 konfigurierbaren Sender-URLs, per I2S
-  ans WROVER-Board
+  ans DevKitV1
 - Zeigt auf dem runden Display: Sender-Name, Artist/Titel (scrollend
   bei Überlänge), Status (verbindend/on air/Fehler), IP-Adresse
 - Webinterface (Retro-Monospace-Stil, grün auf schwarz):
@@ -264,7 +276,7 @@ Diese Punkte haben in der Vorgängerversion konkrete Probleme verursacht
   Änderung), löst BT-Scan aus, ruft Scan-Ergebnisse ab, sendet neuen
   BT-Zielnamen bei Klick auf "Verbinden"
 
-### ESP32-WROVER-Board
+### ESP32 DevKitV1
 - Empfängt Audio per I2S (Slave/RX) über `I2SStream` +
   `ResampleStream` (siehe Stolperstein #10), nicht per Eigenbau-I2S-Code
 - Sendet per Bluetooth A2DP (`A2DPStream`, arduino-audio-tools) an
